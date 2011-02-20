@@ -5,14 +5,16 @@
  *      Author: zlw
  */
 
+#include "phymem.h"
+#include "cpu.h"
+
 //ultils
-#define FASTCALL __fastcall
 
 typedef FASTCALL uint32_t (*OpFunc)(uint32_t);
 
 //dispatch with the bits 20 to 27, and bits 4-7, so there is a 12 bits index and 4K entries mapping
 static OpFunc s_OpDisp[0x1000];
-static (OpFunc *) s_OpDispLv2[0x1000];
+static OpFunc* s_OpDisp2nd[0x1000];
 static char s_OpDispPat2[][12];	//used/allocated at init only
 
 FASTCALL uint32_t Func2ndDisp(uint32_t);
@@ -148,100 +150,58 @@ static void InitCondMap()
 	}
 }
 
-//fuctions
-static uint32_t ulCarryOut;
-
-uint32_t DataProcOpd2(uint32_t ulOpCode)
+void CpuCycles()
 {
-	uint32_t foo, samount;
-	if ( ulOpCode & (1 << 25) == 0 ){	//reg oprd 2
-		foo = g_regs[INT_BITS(uint32_t, ulOpCode, 0, 4)];
-		if ( ulOpCode & (1 << 4) == 0 ){
-			samount = INT_BITS(uint32_t, ulOpCode, 7, 5);
-			switch ( INT_BITS(uint32_t, ulOpCode, 5, 2) ){
-			case 0b00:
-				if ( samount == 0 ){
-					ulCarryOut = CPSR_FLAG_MASK_C & g_cpsr;
-					return foo;
+	if ( CPSR_FLAG_MASK_T & g_cpsr == 0 ){	//arm state
+		uint32_t ulOpCode;
+		do{
+			g_pc &= 0xFFFFFFFC;	//make sure it's 4 byte aligned: some instruction may set none aligned value
+			//fetch
+			try{
+				ulOpCode = phym_read32(g_pc);	//replace this with batch fetching
+			}
+			catch (uint32_t ulAddr){
+				RaiseExp(EXP_PABT, 4);
+				return; //end this bunch
+			}
+			g_ulTicksThisPiece++;	//the instruction costs at least 1 cycle anyway
+			g_pc += 8;	//for being executed instrs,current pc is always 8 bigger than its address
+			//cond
+			if ( s_CondMap[((ulOpCode >> 24) & 0xF0) | (g_cpsr >> 28)] != 0 ){
+				//exec
+				try{
+					if ( 0 != s_OpDisp[((ulOpCode >> 16) & 0x0FF0) | ((ulOpCode >> 4) & 0x000F)](ulOpCode) )
+						return;	//pc must be set correctly already, later this may be replaced by c++ exception
 				}
-				foo <<= ( samount - 1 );
-				ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );
-				return foo << 1;
-			case 0b01:
-				if ( samount == 0 ) samount = 32;
-				foo >>= samount - 1;
-				ulCarryOut = ( foo  & 0x01 ) << 29;
-				return foo >> 1;
-			case 0b10:
-				if ( samount == 0 ) samount = 32;
-				foo = uint32_t( int32_t(foo) >> ( samount - 1 ) );
-				ulCarryOut = ( foo  & 0x01 ) << 29;
-				return uint32_t( int32_t(foo) >> 1 );
-			case 0b11:
-				if ( samount == 0 ){
-					ulCarryOut = ( foo  & 0x01 ) << 29;
-					return ( foo >> 1 ) | ( ( g_cpsr & CPSR_FLAG_MASK_C ) << (31 - 29) );
+				catch(uint32_t ul){
+					RaiseExp(EXP_ABT, -4);
+					return;
 				}
-				foo = ( foo >> samount ) | ( foo << ( 32 - samount ) );
-				ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );
-				return foo;
 			}
-		}
-		else{
-			g_ulTicksThisPiece++;	//extra cycle needed for the 3rd reg
-			samount = g_regs[INT_BITS(uint32_t, ulOpCode, 8, 4)] & 0xFF;
-			if ( samount == 0 ){
-				ulCarryOut = CPSR_FLAG_MASK_C & g_cpsr;
-				return foo;
-			}
-			switch ( INT_BITS(uint32_t, ulOpCode, 5, 2) ){
-			case 0b00:
-				foo <<= ( samount - 1 );
-				ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );
-				return foo << 1;
-			case 0b01:
-				foo >>= samount - 1;
-				ulCarryOut = ( foo  & 0x01 ) << 29;
-				return foo >> 1;
-			case 0b10:
-				foo = uint32_t( int32_t(foo) >> ( samount - 1 ) );
-				ulCarryOut = ( foo  & 0x01 ) << 29;
-				return uint32_t( int32_t(foo) >> 1 );
-			case 0b11:
-				samount %= 32;
-				foo = ( foo >> samount ) | ( foo << ( 32 - samount ) );
-				ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );
-				return foo;
-			}
-		}
+			g_pc -= 4;
+		} while ( g_ulTicksThisPiece < 100 );
 	}
-	else{	//immd oprd2
-		foo = ulOpCode & 0x000000FF;
-		samount = INT_BITS(uint32_t, ulOpCode, 8, 4) << 1;
-		if ( samount == 0 ){
-			ulCarryOut = CPSR_FLAG_MASK_C & g_cpsr;	//do we need carry out on immd oprd2?
-			return foo;
-		}
-		foo = ( foo >> samount ) | ( foo << ( 32 - samount ) );
-		ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );	//do we need carry out on immd oprd2?
-		return foo;
-	}
+	else
+		throw "thumb not implemented";
 }
 
+//fuctions
 #include "cpu_int_dp.cpp"
+#include "cpu_int_br.cpp"
+#include "cpu_int_dt.cpp"
+#include "cpu_int_mul.cpp"
 
 //init
 #define FillDatProc(OpCode, S, Func)\
-	FillOps("00-0"##OpCode##S##"xxxxxxxx-xxx0-xxxx", Func);\
-	FillOps("00-0"##OpCode##S##"xxxxxxxx-0xx1-xxxx", Func);\
-	FillOps("00-1"##OpCode##S##"xxxxxxxx-xxxx-xxxx", Func);
+	FillOps("00-0" OpCode S "xxxxxxxx-xxx0-xxxx", Func);\
+	FillOps("00-0" OpCode S "xxxxxxxx-0xx1-xxxx", Func);\
+	FillOps("00-1" OpCode S "xxxxxxxx-xxxx-xxxx", Func);
 
 
-void InitCpuInt()
+void InitCpu_()
 {
 	//fill in the dispatching array
 	//FillOps("00-0-0000-s-xxxxxxxx-xxx0-xxxx", Op_And_Reg);
-
 	FillDatProc("0000", "s", Op_AND);
 	FillDatProc("0001", "s", Op_EOR);
 	FillDatProc("0010", "s", Op_SUB);
@@ -259,5 +219,41 @@ void InitCpuInt()
 	FillDatProc("0110", "s", Op_BIC);
 	FillDatProc("0111", "s", Op_MVN);
 
+	//branch
+	FillOps("0001-0010-1111-1111-1111-0001-xxxx", Op_BX);
+	FillOps("1010-xxxx-xxxx-xxxx-xxxx-xxxx-xxxx", Op_B);
+	FillOps("1011-xxxx-xxxx-xxxx-xxxx-xxxx-xxxx", Op_BL);
+	FillOps("1111-xxxx-xxxx-xxxx-xxxx-xxxx-xxxx", Op_SWI);
 
+	//date transfer
+	FillOps("00010-p-001111-xxxx-0000-0000-0000", Op_MRS);
+	FillOps("00010-p-1010011111-00000000-xxxx", Op_MSR);
+	FillOps("00010-p-1010001111-00000000-xxxx", Op_MSRFR);
+	FillOps("00110-p-1010001111-xxxx-xxxxxxxx", Op_MSRFI);
+	FillOps("01IP-U1W1-xxxx-xxxx-xxxxxxxxxxxx", Op_LDRB);
+	FillOps("01IP-U0W1-xxxx-xxxx-xxxxxxxxxxxx", Op_LDRW);
+	FillOps("01IP-U1W0-xxxx-xxxx-xxxxxxxxxxxx", Op_STRB);
+	FillOps("01IP-U0W0-xxxx-xxxx-xxxxxxxxxxxx", Op_STRW);
+	FillOps("000P-U0W1-xxxx-xxxx-0000-1011-xxxx", Op_LDRH);
+	FillOps("000P-U0W1-xxxx-xxxx-0000-1111-xxxx", Op_LDRSH);
+	FillOps("000P-U0W1-xxxx-xxxx-0000-1101-xxxx", Op_LDRSB);
+	FillOps("000P-U0W0-xxxx-xxxx-0000-1011-xxxx", Op_STRH);
+	FillOps("000P-U1W1-xxxx-xxxx-xxxx-1011-xxxx", Op_LDRH);
+	FillOps("000P-U1W1-xxxx-xxxx-xxxx-1111-xxxx", Op_LDRSH);
+	FillOps("000P-U1W1-xxxx-xxxx-xxxx-1101-xxxx", Op_LDRSB);
+	FillOps("000P-U1W0-xxxx-xxxx-xxxx-1011-xxxx", Op_STRH);
+	FillOps("100P-USW1-xxxx-xxxxxxxxxxxxxxxx", Op_LDM);
+	FillOps("100P-USW0-xxxx-xxxxxxxxxxxxxxxx", Op_STM);
+	FillOps("0001-0100-xxxx-xxxx-0000-1001-xxxx", Op_SWPB);
+	FillOps("0001-0000-xxxx-xxxx-0000-1001-xxxx", Op_SWPW);
+
+	//mul
+	FillOps("0000-000S-xxxx-xxxx-xxxx-1001-xxxx", Op_MUL);
+	FillOps("0000-001S-xxxx-xxxx-xxxx-1001-xxxx", Op_MLA);
+	FillOps("0000-100S-xxxx-xxxx-xxxx-1001-xxxx", Op_MULLU);
+	FillOps("0000-110S-xxxx-xxxx-xxxx-1001-xxxx", Op_MULLS);
+	FillOps("0000-101S-xxxx-xxxx-xxxx-1001-xxxx", Op_MLALU);
+	FillOps("0000-111S-xxxx-xxxx-xxxx-1001-xxxx", Op_MLALS);
+
+	InitCondMap();
 }

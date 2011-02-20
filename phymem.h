@@ -1,17 +1,18 @@
 #ifndef PHYMEM_H_INCLUDED
 #define PHYMEM_H_INCLUDED
 
-//maybe later handlers should be able to raise exception
-typedef void (*GetRegHandler_t)(uint8_t arrVal[], uint8_t size);
+#include "utilities.h"
+
+//maybe handlers will raise exception; the params may be unnecessary
+typedef void (*GetRegHandler_t)(uint8_t size);
 typedef void (*SetRegHandler_t)(uint8_t arrVal[], uint8_t size);    //size=4,2,1
 
-void RegisterRegHandler(uint32_t addr, SetRegHandler_t set, GetRegHandler_t get);
+void RegisterDevRegHandler(uint32_t addr, SetRegHandler_t set, GetRegHandler_t get = NULL);
 
-extern uint8_t g_arrStorRegCache[0x10000];
+extern uint8_t g_arrDevRegCache[0x10000];
 
 //we are not considering endians yet, since the target and host cpu both use little endian now.
-#define INT_BITS(TYPE, VAL, BITS_START, BITS_SZ)    ( ( (VAL) & ( ( ( (TYPE)1 << (BITS_SZ) ) - 1 ) << (BITS_START) ) ) >> (BITS_START) )
-#define REG_BITS(TYPE, ADDR, BITS_START, BITS_SZ)   INT_BITS(TYPE, (*(TYPE*)(g_arrStorRegCache + ADDR)), BITS_START, BITS_SZ)
+#define REG_BITS(TYPE, ADDR, BITS_START, BITS_SZ)   INT_BITS(TYPE, (*(TYPE*)(g_arrDevRegCache + ADDR)), BITS_START, BITS_SZ)
 
 void Init_DMA();
 
@@ -19,22 +20,19 @@ void Init_DMA();
 //1k per block
 struct BlockDesc {
     uint8_t *pBase;
-    uint8_t bDevReg;
-    uint8_t bWritable;
+    bool bDevReg;
+    bool bWritable;
 };
 
-struct BlockDesc g_arrBlksDesc[0x10000000 >> 10];
+extern struct BlockDesc g_arrBlksDesc[];
 
-EXP_STATE phym_read8(uint32_t addr, uint8_t *pVal);
+FASTCALL uint8_t phym_read8(uint32_t addr) throw(uint32_t);
+FASTCALL void phym_write8(uint32_t addr, uint8_t val) throw(uint32_t);
+FASTCALL uint16_t phym_read16(uint32_t addr) throw(uint32_t);
+FASTCALL void phym_write16(uint32_t addr, uint16_t val) throw(uint32_t);
+FASTCALL uint32_t phym_read32(uint32_t addr) throw(uint32_t);
+FASTCALL void phym_write32(uint32_t addr, uint32_t val) throw(uint32_t);
 
-EXP_STATE phym_write8(uint32_t addr, uint8_t val);
-
-EXP_STATE phym_read16(uint32_t addr, uint16_t *pVal);
-
-EXP_STATE phym_write16(uint32_t addr, uint16_t val);
-
-EXP_STATE phym_read32(uint32_t addr, uint32_t *pVal);
-
-EXP_STATE phym_write32(uint32_t addr, uint32_t val);
+//FASTCALL void phym_FetchInstrs(uint32_t addr, uint32_t *pBuf) throw(uint32_t);
 
 #endif // PHYMEM_H_INCLUDED

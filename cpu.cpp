@@ -16,10 +16,14 @@ const uint32 EXP_DISABLE_IF[EXP_FIQ + 1] = {0x80 + 0x40, 0, 0x80, 0, 0, 0, 0x80,
 const uint32 EXP_TGT_MODE[EXP_FIQ + 1] = {MODE_SVC, MODE_UND, MODE_SVC, MODE_ABT, MODE_ABT, 0xFF, MODE_IRQ, MODE_FIQ};
 
 //registers
-uint32_t g_regsBak[MODE_SYS + 1][17];	//the 17th is spsr. all registers are backed up here, but only banked are restore on swtiching-to
+uint32_t g_regsBak[MODE_SYS][17];	//the 17th is spsr. all registers are backed up here, but only banked are restore on swtiching-to
 uint32_t g_cpsr;
 uint32_t g_regs[17];
 uint32_t &g_spsr = g_regs[16];
+uint32_t &g_pc = g_regs[15];
+
+//nirq flag
+uint32_t g_nirq;	//set to CPSR_FLAG_MASK_I when irq happens
 
 //ticks elapsed
 uint32_t g_ulTicks;
@@ -31,39 +35,52 @@ uint32_t g_ulNextTicksBlankH;
 uint32_t g_ulNextTicksBlankV;
 
 void CpuCycles();
+void InitCpu_();
 
-void SwitchToMode(uint32_t ulToMode)
+inline void SwitchRegs(uint32_t ulFrom, uint32_t ulTo)
 {
-	uint32_t ulCurrMode = g_cpsr & 0x0F;
-
-	g_cpsr = g_cpsr & 0xFFFFFFF0 | ( ulToMode + 0x10 );
-
-    //save/restore banked registers
-    if ( ulToMode != ulCurrMode ){
-    	//copy the current registers back
-    	memcpy(g_regsBak[ulCurrMode], g_regs, sizeof(g_regs));
-    	//copy banked registers from the target mode
-    	if ( ulToMode == MODE_FIQ || ulCurrMode == MODE_FIQ ) memcpy(g_regCurr + 8, g_regsBak[ulToMode] + 8, 7 * sizeof(uint32_t));
-    	else memcpy(g_regCurr + 13, g_regsBak[ulToMode] + 13, 2 * sizeof(uint32_t));
-    	g_regs[16] = g_regsBak[ulToMode][16];	//banked spsr, though mode 0 doesn't have spsr
-    }
-
+	ulFrom %= 14;
+	ulTo %= 14;
+	if ( ulFrom != ulTo ){
+		if ( ulFrom == MODE_FIQ ){	//backup & switch r8 through r12
+			for (uint8_t i = 8; i <= 12; i++){
+				g_regsBak[MODE_FIQ][i] = g_regs[i];
+				g_regs[i] = g_regsBak[MODE_USR][i];
+			}
+		}
+		else if ( ulTo == MODE_FIQ ){	//backup & switch r8 through r12
+			for (uint8_t i = 8; i <= 12; i++){
+				g_regsBak[MODE_USR][i] = g_regs[i];
+				g_regs[i] = g_regsBak[MODE_FIQ][i];
+			}
+		}
+		g_regsBak[ulFrom][13] = g_regs[13];
+		g_regsBak[ulFrom][14] = g_regs[14];
+		g_regs[13] = g_regsBak[ulTo][13];
+		g_regs[14] = g_regsBak[ulTo][14];
+		g_regsBak[ulFrom][16] = g_regs[16];	//user/sys modes have no spsr, but it's okay to save an unpredictable value here since it's never used
+		g_regs[16] = g_regsBak[ulTo][16];
+	}
 }
 
-void RaiseExp(ExpType eType, uint32_t ulPcDelta)
+void SwitchToMode(uint32_t ulNewCpsr)
 {
-    uint32_t ulCurrMode = g_cpsr & 0x0F;
+	uint32_t ulCurrMode = g_cpsr & 0x0FUL;
+	uint32_t ulToMode = ulNewCpsr & 0x0FUL;
+
+	g_cpsr = ulNewCpsr;
+
+    //save/restore banked registers
+	SwitchRegs(ulCurrMode, ulToMode);
+}
+
+void RaiseExp(ExpType eType, int32_t ulPcDelta)
+{
+    uint32_t ulCurrMode = g_cpsr & 0x0FUL;
     uint32_t ulToMode = EXP_TGT_MODE[eType];
 
     //save/restore banked registers
-    if ( ulToMode != ulCurrMode ){
-    	//copy the current registers back
-    	memcpy(g_regsBak[ulCurrMode], g_regs, sizeof(g_regs));
-    	//copy banked registers from the target mode, note we cannot trap to FIQ mode
-    	if ( ulCurrMode == MODE_FIQ ) memcpy(g_regCurr + 8, g_regsBak[ulToMode] + 8, 7 * sizeof(uint32_t));
-    	else memcpy(g_regCurr + 13, g_regsBak[ulToMode] + 13, 2 * sizeof(uint32_t));
-    	//no spsr restore: will be overwritten anyway
-    }
+	SwitchRegs(ulCurrMode, ulToMode);
 
     g_spsr = g_cpsr;
     g_cpsr &= ~STATE_THUMB;
@@ -73,34 +90,28 @@ void RaiseExp(ExpType eType, uint32_t ulPcDelta)
     g_regs[15] = 0 + eType * 4;
 
     //count ticks up
+    g_ulTicksThisPiece += 2;
 }
 
 void BackFromExp(uint32_t ulNewPc)	//triggered on pc/r15 assigning with 'S' bit enabled
 {
-    uint32_t ulCurrMode = g_cpsr & 0x0F;	//cannot be user mode?
-    uint32_t ulToMode = g_spsr & 0x0F;
+    uint32_t ulCurrMode = g_cpsr & 0x0FUL;	//cannot be user mode?
+    uint32_t ulToMode = g_spsr & 0x0FUL;
 
     g_regs[15] = ulNewPc;	//g_regs[ulCurrMode][14] - ulPcDelta;
     g_cpsr = g_spsr;	//do this before restore of spsr
 
     //save/restore banked registers
-    if ( ulToMode != ulCurrMode ){
-    	//copy the current registers back
-    	memcpy(g_regsBak[ulCurrMode], g_regs, sizeof(g_regs));
-    	//copy banked registers from the target mode
-    	if ( ulToMode == MODE_FIQ || ulCurrMode == MODE_FIQ ) memcpy(g_regCurr + 8, g_regsBak[ulToMode] + 8, 7 * sizeof(uint32_t));
-    	else memcpy(g_regCurr + 13, g_regsBak[ulToMode] + 13, 2 * sizeof(uint32_t));
-    	g_regs[16] = g_regsBak[ulToMode][16];	//banked spsr, though mode 0 doesn't have spsr
-    }
+	SwitchRegs(ulCurrMode, ulToMode);
 
     //count ticks up, just do the extra ticks it takes
 	g_ulTicksThisPiece += 2;
 }
 
-void ExecPiece()
+void Exec()
 {
     g_ulTicksThisPiece = 0;
-    {
+    while (true) {
         CpuCycles(); //cpu cycles may trigger dma too
 
         //ticks processing
@@ -133,8 +144,10 @@ void ExecPiece()
             g_ulNextTicksBlankH += 1232;  //73.433us * 16.78Mhz
         }
 
-        //do int? or should int be done by the raising & go through the cpu cycles natually?
-        //at least input event should be handled here for serialized operation
+        //irq are only checked here
+        if ( g_cpsr & g_nirq != 0 ){
+        	RaiseExp(EXP_IRQ, 4);
+        }
     }
 }
 
@@ -151,4 +164,6 @@ void InitCpu()
     g_ulNextTicksBlankH = g_ulNextTicksRendV + 960;  //57.221us * 16.78Mhz
     g_ulNextTicksBlankV = g_ulNextTicksRendV + 160 * 1232; //197148;   //11.749ms * 16.78Mhz
 
+    //implement related
+    InitCpu_();
 }

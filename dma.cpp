@@ -34,9 +34,7 @@ static void DoDma(uint32_t ulBaseRegAddr)
         lDesInc *= 2;
         lSrcInc *= 2;
         for ( ; ulCount--; ulCount > 0 ){
-            uint16_t val;
-            phym_read16(ulAddrS, val);  //exception? is this pattern correct?
-            phym_write16(ulAddrD, val);
+            phym_write16(ulAddrD, phym_read16(ulAddrS));	//exception processing
             ulAddrS += lSrcInc;
             ulAddrD += lDesInc;
         }
@@ -45,9 +43,7 @@ static void DoDma(uint32_t ulBaseRegAddr)
         lDesInc *= 4;
         lSrcInc *= 4;
         for ( ; ulCount--; ulCount > 0 ){
-            uint32_t val;
-            phym_read32(ulAddrS, val);  //exception? is this pattern correct?
-            phym_write32(ulAddrD, val);
+            phym_write32(ulAddrD, phym_read32(ulAddrS));
             ulAddrS += lSrcInc;
             ulAddrD += lDesInc;
         }
@@ -70,4 +66,6 @@ void Init_DMA()
 {
     //the initial values are all zero for dma registers
 
+	//register registers
+	RegisterDevRegHandler(0xBBUL, dma0ctl);	//B0-BB
 }

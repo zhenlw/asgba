@@ -1,198 +1,219 @@
-#include <stdint.h>
+#include "phymem.h"
 
-uint8_t g_arrStorRom[0x4000];   //start from addr 0x00000000
+uint32_t s_dummy;
+uint8_t g_arrStorBios[0x4000];   //start from addr 0x00000000
 uint8_t g_arrStorRam[0x40000];  //start from addr 0x02000000
 uint8_t g_arrStorIram[0x8000];  //start from addr 0x03000000
 uint8_t g_arrStorPalram[0x400];  //start from addr 0x05000000
 uint8_t g_arrStorVram[0x18000];  //start from addr 0x06000000
 uint8_t g_arrStorOam[0x400];  //start from addr 0x07000000
 
-//1k per block
-struct BlockDesc {
-    uint8_t *pBase;
-    uint8_t bDevReg;
-    uint8_t bWritable;
-};
-
 struct BlockDesc g_arrBlksDesc[0x10000000/0x400];
 
-//regeisters related
-uint8_t g_arrStorRegCache[0x10000];  //special one, only for caching
-GetRegHandler_t g_arrGetHdls[0x10000];
-SetRegHandler_t g_arrSetHdls[0x10000];
-uint8_t g_arrRegReadable[0x10000];
-uint8_t g_arrRegWritable[0x10000];
+//device registers map
+uint32_t s_dummy1;
+uint8_t g_arrDevRegCache[0x10000];  //special one, only for caching
+GetRegHandler_t g_arrDevRegGet[0x10000];
+SetRegHandler_t g_arrDevRegSet[0x10000];
+uint8_t g_arrDevRegReadable[0x10000];
+uint8_t g_arrDevRegWritable[0x10000];
 
 
-static void InitBlockArea(uint32_t ulAeraStart, uint32_t ulAeraSize, uint8_t *pSecBase, uint32_t ulSecSize, uint8_t bWritable = 1, uint8_t bDevReg = 0, uint8_t bRepSec = 1);
+static void InitBlockArea(uint32_t ulAeraStart, uint32_t ulAeraSize, uint8_t *pSecBase, uint32_t ulSecSize, bool bWritable = true, bool bDevReg = false)
+{
+	struct BlockDesc *p = g_arrBlksDesc + (ulAeraStart >> 10);
+	for ( uint32_t i = 0; i < ulAeraSize; i += 0x400, p++ ){
+		p->bDevReg = bDevReg;
+		p->bWritable = bWritable;
+		p->pBase = ( pSecBase == NULL? NULL: pSecBase + (i % ulSecSize) );
+	}
+}
 
 void PhyMemInit()
 {
-    //blocks desc
-    InitBlockArea(0, 0x02000000, g_arrStorRom, sizeof(g_arrStorRom), 0, 0, 0);
+    //main blocks desc
+    InitBlockArea(0, sizeof(g_arrStorBios), g_arrStorBios, sizeof(g_arrStorBios), false);
+    InitBlockArea(sizeof(g_arrStorBios), 0x02000000 - sizeof(g_arrStorBios), NULL, 0, false, false);
     InitBlockArea(0x02000000, 0x01000000, g_arrStorRam, sizeof(g_arrStorRam));
     InitBlockArea(0x03000000, 0x01000000, g_arrStorIram, sizeof(g_arrStorIram));
-    InitBlockArea(0x04000000, 0x01000000, NULL, 0, 1, 1, 0);
+    InitBlockArea(0x04000000, 0x01000000, NULL, 0, true, true);
     InitBlockArea(0x05000000, 0x01000000, g_arrStorPalram, sizeof(g_arrStorPalram));
     InitBlockArea(0x06000000, 0x01000000, g_arrStorVram, sizeof(g_arrStorVram));
     InitBlockArea(0x07000000, 0x01000000, g_arrStorOam, sizeof(g_arrStorOam));
 
-    //reg realted
+    //device registers realted
     for ( int32_t i = 0x0FFFF; i >= 0; i-- ){
-        g_arrGetHdls[i] = NULL;
-        g_arrSetHdls[i] = NULL;
-        g_arrStorRegCache[i] = 0;
-        g_arrRegReadable[i] = 1;
-        g_arrRegWritable[i] = 1;
+        g_arrDevRegCache[i] = 0;
+        g_arrDevRegGet[i] = NULL;
+        g_arrDevRegSet[i] = NULL;
+        g_arrDevRegReadable[i] = 1;
+        g_arrDevRegWritable[i] = 1;
     }
 
-    //init actions from devices
-    Init_DMA();
+    //init actions from devices, they are called by a general init routine, just call them after mem init
 }
 
-EXP_STATE phym_read8(uint32_t addr, uint8_t *pVal)
+uint8_t phym_read8(uint32_t addr)
 {
-    struct BlockDesc *pBD;
-    pBD = g_arrBlksDesc + ( addr >> 10 );
+    struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
-        *pVal = *( pBD + ( addr & 0x3FF ) )
-        return EXP_OK;
+        return *( pBD + ( addr & 0x3FF ) );
     }
 
     //registers
-    if ( g_arrRegReadable[addr & 0xFFFF] ){
-        if ( g_arrGetHdls[addr & 0xFFFF] != NULL )
-            g_arrGetHdls[addr & 0xFFFF](g_arrStorRegCache + ( addr & 0xFFFF ), 1);
-        *pVal = g_arrStorRegCache[addr & 0xFFFF];
-        return EXP_OK;
+    if ( pBD->bDevReg && g_arrDevRegReadable[addr & 0xFFFFUL] ){
+        if ( g_arrDevRegGet[addr & 0xFFFFUL] != NULL )
+            g_arrDevRegGet[addr & 0xFFFFUL](1);
+        return g_arrDevRegCache[addr & 0xFFFFUL];
     }
-    return EXP_EXP_MEM_READ;
+    throw addr;
 }
 
-EXP_STATE phym_write8(uint32_t addr, uint8_t val)
+void phym_write8(uint32_t addr, uint8_t val)
 {
-    struct BlockDesc *pBD;
-    pBD = g_arrBlksDesc + ( addr >> 10 );
+    struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
-        if ( pDB->bWritable ){
+        if ( pBD->bWritable ){
             *( pBD + ( addr & 0x3FF ) ) = val;
-            return EXP_OK;
+            return;
         }
-        return EXP_EXP_MEM_WRITE;
+        throw addr;
+    }
+
+    //registers, still need to be done in byte still, since the memory controller should do byte access correctly but not assume a 32-bit emulation
+    if ( pBD->bDevReg && g_arrDevRegWritable[addr & 0xFFFFUL] ){
+        //g_arrDevRegCache[addr & 0xFFFFUL] = val; //will there be any handler wants to avoid this writing?
+        if ( g_arrDevRegSet[addr & 0xFFFFUL] != NULL ) g_arrDevRegSet[addr & 0xFFFFUL](g_arrDevRegCache + ( addr & 0xFFFFUL ), 1);
+        else g_arrDevRegCache[addr & 0xFFFFUL] = val;
+        return;
+    }
+    throw addr;	//enough info?
+}
+
+uint16_t phym_read16(uint32_t addr)
+{
+	addr &= 0xFFFFFFFE;
+    struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
+    if ( pBD->pBase != NULL ){
+        return *(uint16_t*)( pBD + ( addr & 0x3FF ) );
     }
 
     //registers
-    if ( g_arrRegWritable[addr & 0xFFFF] ){
-        g_arrStorRegCache[addr & 0xFFFF] = val; //will there be any handler wants to avoid this writing?
-        if ( g_arrSetHdls[addr & 0xFFFF] != NULL ) g_arrSetHdls[addr & 0xFFFF](g_arrStorRegCache + ( addr & 0xFFFF ), 1);
-        return EXP_OK;
+    uint32_t idx = addr & 0xFFFFUL;
+    if ( pBD->bDevReg && (*(uint16_t*)(g_arrDevRegReadable + idx) == 0x0101) ){
+        GetRegHandler_t *ph = g_arrDevRegGet + idx;
+        if ( *ph != NULL ) (*ph)(2);
+        ph++;
+        if ( *ph != NULL ) (*ph)(2);
+        return *(uint16_t*)(g_arrDevRegCache + idx);
     }
-    return EXP_EXP_MEM_WRITE;
+    throw addr;
 }
 
-EXP_STATE phym_read16(uint32_t addr, uint16_t *pVal)
+void phym_write16(uint32_t addr, uint16_t val)
 {
-    struct BlockDesc *pBD;
-    pBD = g_arrBlksDesc + ( addr >> 10 );
+	addr &= 0xFFFFFFFE;
+    struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
-        *pVal = *(uint16_t*)( pBD + ( addr & 0x3FF ) )
-        return EXP_OK;
-    }
-
-    //registers
-    uint32_t idx = addr & 0xFFFF;
-    if ( *(uint16_t*)(g_arrRegReadable + idx) == 0x0101 ){
-        GetRegHandler_t *ph = g_arrGetHdls + idx;
-        if ( *ph != NULL )
-            (*ph)(g_arrStorRegCache + idx, 2);
-        if ( *(ph + 1) != NULL )
-            (*(ph + 1))(g_arrStorRegCache + idx, 2);
-        *pVal = *(uint16_t*)(g_arrStorRegCache + idx);
-        return EXP_OK;
-    }
-    return EXP_EXP_MEM_READ;
-}
-
-EXP_STATE phym_write16(uint32_t addr, uint16_t val)
-{
-    struct BlockDesc *pBD;
-    pBD = g_arrBlksDesc + ( addr >> 10 );
-    if ( pBD->pBase != NULL ){
-        if ( pDB->bWritable ){
+        if ( pBD->bWritable ){
             *(uint16_t*)( pBD + ( addr & 0x3FF ) ) = val;
-            return EXP_OK;
+            return;
         }
-        return EXP_EXP_MEM_WRITE;
+        throw addr;
     }
 
     //registers
-    uint32_t idx = addr & 0xFFFF;
-    if ( *(uint16_t*)(g_arrRegWritable + idx) == 0x0101 ){
-        *(uint16_t*)(g_arrStorRegCache Ŕ`+ idx) = val; //will there be any handler wants to avoid this writing?
-        GetRegHandler_t *ph = g_arrGetHdls + idx;
+    uint32_t idx = addr & 0xFFFFUL;
+    if ( pBD->bDevReg && (*(uint16_t*)(g_arrDevRegWritable + idx) == 0x0101) ){
+        //*(uint16_t*)(g_arrDevRegCache + idx) = val; //will there be any handler wants to avoid this writing?
+        SetRegHandler_t *ph = g_arrDevRegSet + idx;
+        uint8_t *pSrc = (uint8_t*)&val;
+        uint8_t *pTgt = g_arrDevRegCache + idx;
+
         if ( *ph != NULL )
-            (*ph)(g_arrStorRegCache + idx, 2);
-        if ( *(ph + 1) != NULL )
-            (*(ph + 1))(g_arrStorRegCache + idx, 2);
-        return EXP_OK;
+            (*ph)(pSrc, 4);
+        else
+        	*pTgt = *pSrc;
+        ph++; pSrc++; pTgt++;
+        if ( *ph != NULL )
+            (*ph)(pSrc, 4);
+        else
+        	*pTgt = *pSrc;
+        return;
     }
-    return EXP_EXP_MEM_WRITE;
+    throw addr;
 }
 
-EXP_STATE phym_read32(uint32_t addr, uint32_t *pVal)
+uint32_t phym_read32(uint32_t addr)
 {
-    struct BlockDesc *pBD;
-    pBD = g_arrBlksDesc + ( addr >> 10 );
+	addr &= 0xFFFFFFFC;
+    struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
-        *pVal = *(uint16_t*)( pBD + ( addr & 0x3FF ) )
-        return EXP_OK;
+        return *(uint32_t*)( pBD + ( addr & 0x3FF ) );
     }
 
     //registers
-    uint32_t idx = addr & 0xFFFF;
-    if ( *(uint32_t*)(g_arrRegReadable + idx) == 0x01010101 ){
-        GetRegHandler_t *ph = g_arrGetHdls + idx;
-        if ( *ph != NULL )
-            (*ph)(g_arrStorRegCache + idx, 4);
-        if ( *(ph + 1) != NULL )
-            (*(ph + 1))(g_arrStorRegCache + idx, 4);
-        if ( *(ph + 2) != NULL )
-            (*(ph + 2))(g_arrStorRegCache + idx, 4);
-        if ( *(ph + 3) != NULL )
-            (*(ph + 3))(g_arrStorRegCache + idx, 4);
-        *pVal = *(uint32_t*)(g_arrStorRegCache + idx);
-        return EXP_OK;
+    uint32_t idx = addr & 0xFFFFUL;
+    if ( pBD->bDevReg && (*(uint32_t*)(g_arrDevRegReadable + idx) == 0x01010101) ){
+        GetRegHandler_t *ph = g_arrDevRegGet + idx;
+        if ( *ph != NULL ) (*ph)(4);
+        ph++;
+        if ( *ph != NULL ) (*ph)(4);
+        ph++;
+        if ( *ph != NULL ) (*ph)(4);
+        ph++;
+        if ( *ph != NULL ) (*ph)(4);
+        return *(uint32_t*)(g_arrDevRegCache + idx);
     }
-    return EXP_EXP_MEM_READ;
+    throw addr;
 }
 
-EXP_STATE phym_write32(uint32_t addr, uint32_t val)
+void phym_write32(uint32_t addr, uint32_t val)
 {
-    struct BlockDesc *pBD;
-    pBD = g_arrBlksDesc + ( addr >> 10 );
+	addr &= 0xFFFFFFFC;
+    struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
-        if ( pDB->bWritable ){
+        if ( pBD->bWritable ){
             *(uint32_t*)( pBD + ( addr & 0x3FF ) ) = val;
-            return EXP_OK;
+            return;
         }
-        return EXP_EXP_MEM_WRITE;
+        throw addr;
     }
 
     //registers
-    uint32_t idx = addr & 0xFFFF;
-    if ( *(uint32_t*)(g_arrRegWritable + idx) == 0x0101 ){
-        *(uint32_t*)(g_arrStorRegCache Ŕ`+ idx) = val; //will there be any handler wants to avoid this writing?
-        GetRegHandler_t *ph = g_arrGetHdls + idx;
+    uint32_t idx = addr & 0xFFFFUL;
+    if ( pBD->bDevReg && (*(uint32_t*)(g_arrDevRegWritable + idx) == 0x01010101) ){
+        //*(uint32_t*)(g_arrDevRegCache + idx) = val; //will there be any handler wants to avoid this writing?
+        SetRegHandler_t *ph = g_arrDevRegSet + idx;
+        uint8_t *pSrc = (uint8_t*)&val;
+        uint8_t *pTgt = g_arrDevRegCache + idx;
+
         if ( *ph != NULL )
-            (*ph)(g_arrStorRegCache + idx, 4);
-        if ( *(ph + 1) != NULL )
-            (*(ph + 1))(g_arrStorRegCache + idx, 4);
-        if ( *(ph + 2) != NULL )
-            (*(ph + 2))(g_arrStorRegCache + idx, 4);
-        if ( *(ph + 3) != NULL )
-            (*(ph + 3))(g_arrStorRegCache + idx, 4);
-        return EXP_OK;
+            (*ph)(pSrc, 4);
+        else
+        	*pTgt = *pSrc;
+        ph++; pSrc++; pTgt++;
+        if ( *ph != NULL )
+            (*ph)(pSrc, 4);
+        else
+        	*pTgt = *pSrc;
+        ph++; pSrc++; pTgt++;
+        if ( *ph != NULL )
+            (*ph)(pSrc, 4);
+        else
+        	*pTgt = *pSrc;
+        ph++; pSrc++; pTgt++;
+        if ( *ph != NULL )
+            (*ph)(pSrc, 4);
+        else
+        	*pTgt = *pSrc;
+        return;
     }
-    return EXP_EXP_MEM_WRITE;
+    throw addr;
 }
 
+void RegisterDevRegHandler(uint32_t addr, SetRegHandler_t set, GetRegHandler_t get)
+{
+	g_arrDevRegGet[addr & 0xFFFFUL] = get;
+	g_arrDevRegSet[addr & 0xFFFFUL] = set;
+}
