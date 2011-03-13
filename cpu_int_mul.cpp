@@ -14,15 +14,15 @@ FASTCALL uint32_t Op_MUL(uint32_t ulOpCode)
 	if ( 0UL - (ul >> 7) == (rs & 0xFF000000) ){
 		if ( 0UL - (ul >> 15) == (rs & 0xFFFF0000) ){
 			if ( 0UL - (ul >> 23) == (rs & 0xFFFFFF00) )
-				g_ulTicksThisPiece++;
+				g_usTicksThisPiece++;
 			else
-				g_ulTicksThisPiece += 2;
+				g_usTicksThisPiece += 2;
 		}
 		else
-			g_ulTicksThisPiece += 3;
+			g_usTicksThisPiece += 3;
 	}
 	else
-		g_ulTicksThisPiece += 4;
+		g_usTicksThisPiece += 4;
 
 	uint32_t foo = rm * rs;
 	g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] = foo;
@@ -47,15 +47,15 @@ FASTCALL uint32_t Op_MLA(uint32_t ulOpCode)
 	if ( 0UL - (ul >> 7) == (rs & 0xFF000000) ){
 		if ( 0UL - (ul >> 15) == (rs & 0xFFFF0000) ){
 			if ( 0UL - (ul >> 23) == (rs & 0xFFFFFF00) )
-				g_ulTicksThisPiece += 2;
+				g_usTicksThisPiece += 2;
 			else
-				g_ulTicksThisPiece += 3;
+				g_usTicksThisPiece += 3;
 		}
 		else
-			g_ulTicksThisPiece += 4;
+			g_usTicksThisPiece += 4;
 	}
 	else
-		g_ulTicksThisPiece += 5;
+		g_usTicksThisPiece += 5;
 
 	uint32_t foo = rm * rs + rn;
 	g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] = foo;
@@ -79,15 +79,15 @@ FASTCALL uint32_t Op_MULLU(uint32_t ulOpCode)
 	if ( 0UL - (ul >> 7) == (rs & 0xFF000000) ){
 		if ( 0UL - (ul >> 15) == (rs & 0xFFFF0000) ){
 			if ( 0UL - (ul >> 23) == (rs & 0xFFFFFF00) )
-				g_ulTicksThisPiece++;
+				g_usTicksThisPiece++;
 			else
-				g_ulTicksThisPiece += 2;
+				g_usTicksThisPiece += 2;
 		}
 		else
-			g_ulTicksThisPiece += 3;
+			g_usTicksThisPiece += 3;
 	}
 	else
-		g_ulTicksThisPiece += 4;
+		g_usTicksThisPiece += 4;
 
 	uint64_t foo = uint64_t(rm) * uint64_t(rs);
 	g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = uint32_t(foo);
@@ -112,15 +112,15 @@ FASTCALL uint32_t Op_MULLS(uint32_t ulOpCode)
 	if ( 0UL - (ul >> 7) == (rs & 0xFF000000) ){
 		if ( 0UL - (ul >> 15) == (rs & 0xFFFF0000) ){
 			if ( 0UL - (ul >> 23) == (rs & 0xFFFFFF00) )
-				g_ulTicksThisPiece++;
+				g_usTicksThisPiece++;
 			else
-				g_ulTicksThisPiece += 2;
+				g_usTicksThisPiece += 2;
 		}
 		else
-			g_ulTicksThisPiece += 3;
+			g_usTicksThisPiece += 3;
 	}
 	else
-		g_ulTicksThisPiece += 4;
+		g_usTicksThisPiece += 4;
 
 	uint64_t foo = uint64_t(int64_t(int32_t(rm))) * uint64_t(int64_t(int32_t(rs)));
 	g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = uint32_t(foo);
@@ -147,15 +147,15 @@ FASTCALL uint32_t Op_MLALU(uint32_t ulOpCode)
 	if ( 0UL - (ul >> 7) == (rs & 0xFF000000) ){
 		if ( 0UL - (ul >> 15) == (rs & 0xFFFF0000) ){
 			if ( 0UL - (ul >> 23) == (rs & 0xFFFFFF00) )
-				g_ulTicksThisPiece++;
+				g_usTicksThisPiece++;
 			else
-				g_ulTicksThisPiece += 2;
+				g_usTicksThisPiece += 2;
 		}
 		else
-			g_ulTicksThisPiece += 3;
+			g_usTicksThisPiece += 3;
 	}
 	else
-		g_ulTicksThisPiece += 4;
+		g_usTicksThisPiece += 4;
 
 	uint64_t foo = uint64_t(rm) * uint64_t(rs) + ((uint64_t(g_regs[rdi2]) << 32) | uint64_t(g_regs[rdi1]));
 	g_regs[rdi1] = uint32_t(foo);
@@ -182,15 +182,15 @@ FASTCALL uint32_t Op_MLALS(uint32_t ulOpCode)
 	if ( 0UL - (ul >> 7) == (rs & 0xFF000000) ){
 		if ( 0UL - (ul >> 15) == (rs & 0xFFFF0000) ){
 			if ( 0UL - (ul >> 23) == (rs & 0xFFFFFF00) )
-				g_ulTicksThisPiece++;
+				g_usTicksThisPiece++;
 			else
-				g_ulTicksThisPiece += 2;
+				g_usTicksThisPiece += 2;
 		}
 		else
-			g_ulTicksThisPiece += 3;
+			g_usTicksThisPiece += 3;
 	}
 	else
-		g_ulTicksThisPiece += 4;
+		g_usTicksThisPiece += 4;
 
 	uint64_t foo = uint64_t(int64_t(int32_t(rm))) * uint64_t(int64_t(int32_t(rs))) + ((uint64_t(g_regs[rdi2]) << 32) | uint64_t(g_regs[rdi1]));
 	g_regs[rdi1] = uint32_t(foo);

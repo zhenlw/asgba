@@ -1,41 +1,108 @@
 #include "phymem.h"
 
-uint16_t TiledBg(uint32_t ulBgCntAddr, uint16_t x, uint16_t y)
+//sys ticks related, actually not real cpu work, but anyway
+static uint16_t s_usTicksH;
+static uint16_t s_usTicksHNextEvt;
+static uint16_t s_usCurrLine;
+
+#include "display.hpp"
+
+static DispLayer *s_arrObjLayers[4] = {NULL, NULL, NULL, NULL};    //indexed by priority
+static DispLayer *s_arrBgs[4] = {NULL, NULL, NULL, NULL};  //indexed by bg number
+static uint16_t s_arrBgsPrio[4];     //the priorities among bgs and objs is not clear
+static bool s_bForceBlank;
+
+void DisplayRenderLine()
 {
-    uint16_t usVirSizeX = REG_BITS(uint16_t, ulBgCntAddr, 14, 1) * 256 + 256;
-    uint16_t usVirSizeY = REG_BITS(uint16_t, ulBgCntAddr, 15, 1) * 256 + 256;
-    x = x % usVirSizeX;
-    y = y % usVirSizeY;
+}
 
-    //decide which tile are we in
-    uint16_t usTileX = x / 8;
-    uint16_t usTileY = y / 8;
-    uint16_t usTileIndex = usTileY * ( usVirSizeX / 8 ) + usTileX;
-
-    //find the dot palette via the tile index
-    uint8_t byDotPalette;
-    uint16_t usTileMapEntry = *(uint16_t*)(g_arrStorVram + REG_BITS(uint16_t, ulBgCntAddr, 8, 5) * 0x800 + 2 * usTileIndex);
-    uint16_t usInTileX = x % 8;
-    uint16_t usInTileY = y % 8;
-    if ( INT_BITS(uint16_t, usTileMapEntry, 10, 1) != 0 ) usInTileX = 7 - usInTileX;
-    if ( INT_BITS(uint16_t, usTileMapEntry, 11, 1) != 0 ) usInTileY = 7 - usInTileY;
-    uint16_t usTileDataIndex = INT_BITS(uint16_t, usTileMapEntry, 0, 10);
-    if ( REG_BITS(uint16_t, ulBgCntAddr, 7, 1) == 0 ){  //4-bit palette
-        byDotPalette = *(g_arrStorVram + REG_BITS(uint16_t, ulBgCntAddr, 2, 2) * 0x4000 + usTileDataIndex * 0x20 + usInTileY * 4 + usInTileX / 2);
-        byDotPalette = ( byDotPalette >> ( usTileX % 2 ) * 4 ) & 0x0F;
-        if ( byDotPalette == 0 ) return 0x8000;
-        byDotPalette |= uint8_t(( usTileMapEntry & 0xF000 ) >> 8);
+template <typename T>
+void SetBgRender(int slot)
+{
+    if ( REG_BITS(uint16_t, 0, slot + 8, 1) == 0 ){
+        s_arrBgsPrio[slot] = 0xFFFF;
+        return;
     }
-    else{
-        byDotPalette = *(g_arrStorVram + REG_BITS(uint16_t, ulBgCntAddr, 2, 2) * 0x4000 + usTileDataIndex * 0x40 + usInTileY * 8 + usInTileX);
-        if ( byDotPalette == 0 ) return 0x8000;
+    s_arrBgsPrio[slot] = REG_BITS(uint16_t, 0x0008 + slot * 2, 0, 2);
+    if ( s_arrBgs[slot] != NULL )
+        if ( typeid(*s_arrBgs[slot]) != typeid(T) ){
+            delete s_arrBgs[slot];
+            s_arrBgs[slot] = new T();
+        }
     }
+    else s_arrBgs[slot] = new T();
+    s_arrBgs[slot].ReloadCtl(0x0008 + slot * 2);
+}
 
-    //convert the palette index into rgb
-    return g_arrStorPalram[byDotPalette] & 0x7FFF;
+void DisplayRenderStart()
+{
+    if ( REG_BITS(uint16_t, 0, 7, 1) != 0 ){    //force blank
+        s_bForceBlank = true;
+        return;
+    }
+    s_bForceBlank = false;
+
+    switch ( REG_BITS(uint16_t, 0, 0, 3) ){
+    case 0:
+        for ( uint16_t i = 0; i < 4; i++ ){
+            SetBgRender<TiledBg>(i);
+        }
+        break;
+    case 1:
+        for ( uint16_t i = 0; i < 2; i++ ){
+            SetBgRender<TiledBg>(i);
+        }
+        SetBgRender<TiledBgRS>(2);
+        s_arrBgsPrio[3] = 0xFFFF;
+        break;
+    case 1:
+        for ( uint16_t i = 2; i < 4; i++ ){
+            SetBgRender<TiledBgRS>(i);
+        }
+        s_arrBgsPrio[0] = 0xFFFF;
+        s_arrBgsPrio[1] = 0xFFFF;
+        break;
+
+    }
+}
+
+void DoDispTicksUpdate()
+{
+    s_usTicksH += g_usTicksThisPiece;
+    if ( s_usTicksH >= s_usTicksHNextEvt ){
+        if ( s_usTicksHNextEvt == 1232 ){
+            s_usTicksH -= 1232;
+            s_usTicksHNextEvt = 960;
+            s_usCurrLine++;
+            if ( s_usCurrLine < 160 ){ //hRend, should dma be notified?
+                DisplayRenderLine();
+            }
+            else if ( s_usCurrLine == 160 ){ //VBlank
+                DmaEvent(EVT_VBLK);
+                SetIRQ(INTR_INDEX_VBLK);
+            }
+            else if ( s_usCurrLine == 228 ){ //VRend, should dma be notified?
+                s_usCurrLine = 0;
+                DisplayRenderStart();
+            }
+        }
+        else if ( s_usTicksHNextEvt == 960 ){
+            s_usTicksHNextEvt = 1232;
+            if ( s_usCurrLine < 160 ){ //hBlank
+                DmaEvent(EVT_HBLK);
+                SetIRQ(INTR_INDEX_HBLK);
+            }
+        }
+    }
 }
 
 void Init_Display()
 {
+    //ticks
+    s_usTicksH = 1232;
+    s_usCurrLine = 0xFFFF;
+    s_usTicksHNextEvt = 1232;
 
+    //registers initialization
+    *(uint16_t*)(g_arrDevRegCache + 0x0000) = 0x0080;   //DISPCNT
 }

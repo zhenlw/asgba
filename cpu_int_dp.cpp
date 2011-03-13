@@ -48,7 +48,7 @@ uint32_t DataProcOpd2(uint32_t ulOpCode)
 			}
 		}
 		else{
-			g_ulTicksThisPiece++;	//extra cycle needed for the 3rd reg
+			g_usTicksThisPiece++;	//extra cycle needed for the 3rd reg
 			g_regs[15] += 4;
 			s_ulPcDelta = 4;
 			foo = g_regs[INT_BITS(uint32_t, ulOpCode, 0, 4)];

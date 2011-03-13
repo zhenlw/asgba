@@ -25,15 +25,6 @@ uint32_t &g_pc = g_regs[15];
 //nirq flag
 uint32_t g_nirq;	//set to CPSR_FLAG_MASK_I when irq happens
 
-//ticks elapsed
-uint32_t g_ulTicks;
-uint32_t g_ulTicksThisPiece;
-
-uint32_t g_ulNextTicksRendH;
-uint32_t g_ulNextTicksRendV;
-uint32_t g_ulNextTicksBlankH;
-uint32_t g_ulNextTicksBlankV;
-
 void CpuCycles();
 void InitCpu_();
 
@@ -90,7 +81,7 @@ void RaiseExp(ExpType eType, int32_t ulPcDelta)
     g_regs[15] = 0 + eType * 4;
 
     //count ticks up
-    g_ulTicksThisPiece += 2;
+    g_usTicksThisPiece += 2;
 }
 
 void BackFromExp(uint32_t ulNewPc)	//triggered on pc/r15 assigning with 'S' bit enabled
@@ -105,47 +96,31 @@ void BackFromExp(uint32_t ulNewPc)	//triggered on pc/r15 assigning with 'S' bit 
 	SwitchRegs(ulCurrMode, ulToMode);
 
     //count ticks up, just do the extra ticks it takes
-	g_ulTicksThisPiece += 2;
+	g_usTicksThisPiece += 2;
 }
 
+void CheckIRQ();
+
+//sys ticks related, actually not real cpu work, but anyway
+uint16_t g_usTicksThisPiece;
+
+//main entrance, not only cpu work
 void Exec()
 {
-    g_ulTicksThisPiece = 0;
     while (true) {
-        CpuCycles(); //cpu cycles may trigger dma too
+        g_usTicksThisPiece = 0;
+        DoDmaPiece();
+        if ( g_usTicksThisPiece == 0 )
+            CpuCycles();
 
-        //ticks processing
-        g_ulTicks += g_ulTicksThisPiece;
-        //should we allow ticks based actions happen before exceptions?
-        if ( g_ulTicks >= g_ulNextTicksRendH ){
-            if ( g_ulTicks >= g_ulNextTicksRendV ){
-                //clear v count. may be do a syncing with real world time later
-                *(uint16_t *)(g_arrStorRegCache + 6) = 0;
-                g_ulNextTicksRendV += 1232 * 228; //280948;  //16.743ms * 16.78Mhz
-                //g_ulNextTicksRendH = g_ulNextTicksRendV + 1232;
-                //g_ulNextTicksBlankH = g_ulNextTicksRendV + 960;  //57.221us * 16.78Mhz
-                //g_ulNextTicksBlankV = g_ulNextTicksRendV + 197148;   //11.749ms * 16.78Mhz
-            }
-            else{
-                if ( g_ulTicks >= g_ulNextTicksBlankV ){
-                    //vblank int/dma
-
-                    g_ulNextTicksBlankV += 1232 * 228; //280948;  //16.743ms * 16.78Mhz
-                }
-                *(uint16_t *)(g_arrStorRegCache + 6) += 1;
-                g_ulNextTicksRendH += 1232;  //73.433us * 16.78Mhz
-            }
-
-            DisplayRenderLine();
-        }
-        else if ( g_ulTicks >= g_ulNextTicksBlankH ){
-            //hblank int/dma
-
-            g_ulNextTicksBlankH += 1232;  //73.433us * 16.78Mhz
-        }
+        //ticks processing, timer and video
+        DoTimerUpdate();
+        DoDispTicksUpdate();
 
         //irq are only checked here
-        if ( g_cpsr & g_nirq != 0 ){
+        CheckIRQ();	//this is the check of the informal data to serialize the input in the cpu thread
+
+        if ( g_cpsr & g_nirq != 0 ){	//this is the check of the formal flag
         	RaiseExp(EXP_IRQ, 4);
         }
     }
@@ -156,13 +131,6 @@ void InitCpu()
     //regs
 	g_cpsr = 0;
 	RaiseExp(EXP_RESET, 0);	//it happens to set the status right, the to be saved cpsr is "unpredictable" anyway
-
-    //ticks
-    g_ulTicks = 0;
-    g_ulNextTicksRendV = 0;
-    g_ulNextTicksRendH = g_ulNextTicksRendV + 1232;
-    g_ulNextTicksBlankH = g_ulNextTicksRendV + 960;  //57.221us * 16.78Mhz
-    g_ulNextTicksBlankV = g_ulNextTicksRendV + 160 * 1232; //197148;   //11.749ms * 16.78Mhz
 
     //implement related
     InitCpu_();

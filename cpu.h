@@ -38,4 +38,6 @@ inline void SwitchRegs(uint32_t ulFrom, uint32_t ulTo);
 
 #define CPSR_FLAG_MASK_I	(uint32_t(1) << 7)
 
+enum SystemEvent{EVT_NONE = 0, EVT_VBLK, EVT_HBLK, EVT_FIFO, EVT_VSTART, EVT_HSTART, EVT_FIFO_FULL};
+
 #endif /* CPU_H_ */

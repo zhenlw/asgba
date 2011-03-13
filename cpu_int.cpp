@@ -164,7 +164,7 @@ void CpuCycles()
 				RaiseExp(EXP_PABT, 4);
 				return; //end this bunch
 			}
-			g_ulTicksThisPiece++;	//the instruction costs at least 1 cycle anyway
+			g_usTicksThisPiece++;	//the instruction costs at least 1 cycle anyway
 			g_pc += 8;	//for being executed instrs,current pc is always 8 bigger than its address
 			//cond
 			if ( s_CondMap[((ulOpCode >> 24) & 0xF0) | (g_cpsr >> 28)] != 0 ){
@@ -179,7 +179,7 @@ void CpuCycles()
 				}
 			}
 			g_pc -= 4;
-		} while ( g_ulTicksThisPiece < 100 );
+		} while ( g_usTicksThisPiece < 100 );
 	}
 	else
 		throw "thumb not implemented";
