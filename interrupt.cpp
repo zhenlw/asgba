@@ -6,6 +6,7 @@
  */
 
 #include "phymem.h"
+#include "cpu.h"
 
 static void IntrReq(uint8_t arrVal[], uint8_t size)
 {
@@ -45,30 +46,30 @@ void Init_INTR()
 void SetIRQ(uint8_t idx)	//this can run in different threads
 {
 	if ( idx < 14 ){
-		EnterCriticalSection(&g_csIRQ);
+		EnterCriticalSection(&s_csIRQ);
 		s_usIRQ |= uint16_t(1) << idx;
-		LeaveCriticalSection(&g_csIRQ);
+		LeaveCriticalSection(&s_csIRQ);
 	}
 }
 
-void CheckIRQ()	//runs in cpu cycles only
+FASTCALL void CheckIRQ()	//runs in cpu cycles only
 {
 	if ( s_usIRQ != 0 ){
 		//new flag may enter during this time, but no problem
-		if ( g_arrDevRegCache[0x0208] & 0x01 != 0 ){
-			EnterCriticalSection(&g_csIRQ);
+		if ( (g_arrDevRegCache[0x0208] & 0x01) != 0 ){
+			EnterCriticalSection(&s_csIRQ);
 			s_usIRQ &= *(uint16_t*)(g_arrDevRegCache + 0x200);
 			if ( s_usIRQ != 0 ){
 				*(uint16_t*)(g_arrDevRegCache + 0x202) |= s_usIRQ;
 				s_usIRQ = 0;
 				g_nirq = CPSR_FLAG_MASK_I;
 			}
-			LeaveCriticalSection(&g_csIRQ);
+			LeaveCriticalSection(&s_csIRQ);
 		}
 		else{
-			EnterCriticalSection(&g_csIRQ);
+			EnterCriticalSection(&s_csIRQ);
 			s_usIRQ = 0;
-			LeaveCriticalSection(&g_csIRQ);
+			LeaveCriticalSection(&s_csIRQ);
 		}
 		g_nirq = CPSR_FLAG_MASK_I;
 	}

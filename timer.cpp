@@ -1,11 +1,12 @@
 #include "phymem.h"
+#include "cpu.h"
 #include "interrupt.h"
 
 struct TimerStatus{
-	uint16 usCurr;
-	uint16 usReload;
-	uint16 usScale;
-	uint16 usScaleLeftOver;
+	uint16_t usCurr;
+	uint16_t usReload;
+	uint16_t usScale;
+	uint16_t usScaleLeftOver;
 	bool bCountUp;
 	bool bIntr;
 } s_TimerStatus[4];
@@ -38,7 +39,7 @@ static void TimerCtlSet(uint16_t idx)
 	s_TimerStatusOn[idx] = 1;
 }
 
-void DoTimerUpdate()	//do this after every cpu/dma piece
+FASTCALL void DoTimerUpdate()	//do this after every cpu/dma piece
 {
 	if ( *(uint32_t*)s_TimerStatusOn == 0 )
 		return;
@@ -72,21 +73,21 @@ void DoTimerUpdate()	//do this after every cpu/dma piece
 template<uint8_t byChnl, uint8_t byHigh>
 static void TimerSetRel(uint8_t arrVal[], uint8_t size)
 {
-	*(uint8_t*(&(s_TimerStatus[byChnl].usReload)) + byHigh) = arrVal[0];
+	*((uint8_t*)(&(s_TimerStatus[byChnl].usReload)) + byHigh) = arrVal[0];
 	//support little endian usReload only for now.
 }
 
 template<uint8_t byChnl, uint8_t byHigh>
 static void TimerGetCnt(uint8_t size)
 {
-	g_arrDevRegCache[0x0100 + 4 * byChnl + byHigh] = *(uint8_t*(&(s_TimerStatus[byChnl].usCurr)) + byHigh);
+	g_arrDevRegCache[0x0100 + 4 * byChnl + byHigh] = *((uint8_t*)(&(s_TimerStatus[byChnl].usCurr)) + byHigh);
 }
 
 template<uint8_t byChnl>
 static void TimerSetCtl(uint8_t arrVal[], uint8_t size)
 {
 	g_arrDevRegCache[0x0102 + 4 * byChnl] = *arrVal;
-	if ( arrVal[0] & 0x80!= 0 ) TimerCtlSet(byChnl);
+	if ( ( arrVal[0] & 0x80 ) != 0 ) TimerCtlSet(byChnl);
 	else{
 		s_TimerStatusOn[byChnl] = 0;
 	}
@@ -96,8 +97,8 @@ static void TimerSetCtl(uint8_t arrVal[], uint8_t size)
 void Init_Timer()
 {
     //the initial values are all zero for dma registers
-	memset(s_TimerStatus, 0, sizeof(s_TimerStatus);
-	memset(s_TimerStatusOn, 0, sizeof(s_TimerStatusOn);
+	memset(s_TimerStatus, 0, sizeof(s_TimerStatus));
+	memset(s_TimerStatusOn, 0, sizeof(s_TimerStatusOn));
 
 	//register registers
 	RegisterDevRegHandler(0x0100, TimerSetRel<0, 0>, TimerGetCnt<0, 0>);
@@ -109,8 +110,8 @@ void Init_Timer()
 	RegisterDevRegHandler(0x010C, TimerSetRel<3, 0>, TimerGetCnt<3, 0>);
 	RegisterDevRegHandler(0x010D, TimerSetRel<3, 1>, TimerGetCnt<3, 1>);
 	
-	RegisterDevRegHandler(0x0102, TimerSetRel<0>);
-	RegisterDevRegHandler(0x0106, TimerSetRel<1>);
-	RegisterDevRegHandler(0x010A, TimerSetRel<2>);
-	RegisterDevRegHandler(0x010E, TimerSetRel<3>);
+	RegisterDevRegHandler(0x0102, TimerSetCtl<0>);
+	RegisterDevRegHandler(0x0106, TimerSetCtl<1>);
+	RegisterDevRegHandler(0x010A, TimerSetCtl<2>);
+	RegisterDevRegHandler(0x010E, TimerSetCtl<3>);
 }

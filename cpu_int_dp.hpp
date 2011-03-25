@@ -14,12 +14,12 @@ uint32_t DataProcOpd2(uint32_t ulOpCode)
 {
 	uint32_t foo, samount;
 	s_ulPcDelta = 0;
-	if ( ulOpCode & (1UL << 25) == 0 ){	//reg oprd 2
-		if ( ulOpCode & (1UL << 4) == 0 ){
+	if ( (ulOpCode & (1UL << 25)) == 0 ){	//reg oprd 2
+		if ( (ulOpCode & (1UL << 4)) == 0 ){
 			foo = g_regs[INT_BITS(uint32_t, ulOpCode, 0, 4)];
 			samount = INT_BITS(uint32_t, ulOpCode, 7, 5);
 			switch ( INT_BITS(uint32_t, ulOpCode, 5, 2) ){
-			case 0b00:
+			case 0:
 				if ( samount == 0 ){
 					s_ulCarryOut = CPSR_FLAG_MASK_C & g_cpsr;
 					return foo;
@@ -27,25 +27,25 @@ uint32_t DataProcOpd2(uint32_t ulOpCode)
 				foo <<= ( samount - 1 );
 				s_ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );
 				return foo << 1;
-			case 0b01:
+			case 1:
 				if ( samount == 0 ) samount = 32;
 				foo >>= samount - 1;
 				s_ulCarryOut = ( foo  & 0x01 ) << 29;
 				return foo >> 1;
-			case 0b10:
+			case 2:
 				if ( samount == 0 ) samount = 32;
 				foo = uint32_t( int32_t(foo) >> ( samount - 1 ) );
 				s_ulCarryOut = ( foo  & 0x01 ) << 29;
 				return uint32_t( int32_t(foo) >> 1 );
-			case 0b11:
+			case 3:
 				if ( samount == 0 ){
 					s_ulCarryOut = ( foo  & 0x01 ) << 29;
 					return ( foo >> 1 ) | ( ( g_cpsr & CPSR_FLAG_MASK_C ) << (31 - 29) );
 				}
 				foo = ( foo >> samount ) | ( foo << ( 32 - samount ) );
 				s_ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );
-				return foo;
 			}
+			return foo;	//case 3 only, to stop warning
 		}
 		else{
 			g_usTicksThisPiece++;	//extra cycle needed for the 3rd reg
@@ -58,24 +58,24 @@ uint32_t DataProcOpd2(uint32_t ulOpCode)
 				return foo;
 			}
 			switch ( INT_BITS(uint32_t, ulOpCode, 5, 2) ){
-			case 0b00:
+			case 0:
 				foo <<= ( samount - 1 );
 				s_ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );
 				return foo << 1;
-			case 0b01:
+			case 1:
 				foo >>= samount - 1;
 				s_ulCarryOut = ( foo  & 0x01 ) << 29;
 				return foo >> 1;
-			case 0b10:
+			case 2:
 				foo = uint32_t( int32_t(foo) >> ( samount - 1 ) );
 				s_ulCarryOut = ( foo  & 0x01 ) << 29;
 				return uint32_t( int32_t(foo) >> 1 );
-			case 0b11:
+			case 3:
 				samount %= 32;
 				foo = ( foo >> samount ) | ( foo << ( 32 - samount ) );
 				s_ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );
-				return foo;
 			}
+			return foo;	//case 3 only, to stop warning
 		}
 	}
 	else{	//immd oprd2
@@ -93,14 +93,15 @@ uint32_t DataProcOpd2(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_AND(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);	//also pc is decided here
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] =
-				g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] & ulOpd2;
+	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
+	uint32_t res = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] & ulOpd2;
+	
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
+		g_regs[rdi] = res;
 	}
 	else{
-		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
-		uint32_t res = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] & ulOpd2;
 		if ( rdi == 15 ){
 			BackFromExp(res);
 			return 1;
@@ -117,8 +118,9 @@ FASTCALL uint32_t Op_AND(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_EOR(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] =
 				g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] ^ ulOpd2;
 	}
@@ -141,6 +143,7 @@ FASTCALL uint32_t Op_EOR(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_TST(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
 	//S must be set. or assumed to be set even when not?
 	uint32_t res = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] & ulOpd2;
@@ -154,6 +157,7 @@ FASTCALL uint32_t Op_TST(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_TEQ(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
 	uint32_t res = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] ^ ulOpd2;
 	if ( res == 0 ) g_cpsr |= CPSR_FLAG_MASK_Z;
@@ -166,8 +170,9 @@ FASTCALL uint32_t Op_TEQ(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_ORR(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] =
 				g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] | ulOpd2;
 	}
@@ -190,8 +195,9 @@ FASTCALL uint32_t Op_ORR(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_MOV(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = ulOpd2;
 	}
 	else{
@@ -213,8 +219,9 @@ FASTCALL uint32_t Op_MOV(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_BIC(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] =
 				g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] & (~ulOpd2);
 	}
@@ -237,8 +244,9 @@ FASTCALL uint32_t Op_BIC(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_MVN(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = ~ulOpd2;
 	}
 	else{
@@ -260,8 +268,9 @@ FASTCALL uint32_t Op_MVN(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_ADD(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ulOpd2;
 	}
 	else{
@@ -288,6 +297,7 @@ FASTCALL uint32_t Op_ADD(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_CMN(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
 	//S must be set
 	uint32_t op1 = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
@@ -307,8 +317,9 @@ FASTCALL uint32_t Op_CMN(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_ADC(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ulOpd2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 28 );
 	}
 	else{
@@ -340,8 +351,9 @@ FASTCALL uint32_t Op_ADC(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_SUB(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] - ulOpd2;
 	}
 	else{
@@ -373,8 +385,9 @@ FASTCALL uint32_t Op_SUB(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_SBC(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] - ulOpd2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 28 ) - 1;
 	}
 	else{
@@ -406,6 +419,7 @@ FASTCALL uint32_t Op_SBC(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_CMP(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
 	uint32_t op1 = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
 	uint32_t op2 = ~ulOpd2;
@@ -427,8 +441,9 @@ FASTCALL uint32_t Op_CMP(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_RSB(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = ulOpd2 - g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
 	}
 	else{
@@ -460,8 +475,9 @@ FASTCALL uint32_t Op_RSB(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_RSC(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
-	if ( ulOpCode & ( 0x1UL << 20 ) == 0 ){
+	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = ulOpd2 - g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 28 ) -1;
 	}
 	else{

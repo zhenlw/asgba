@@ -5,7 +5,7 @@
  *      Author: zlw
  */
 
-static uint32_t s_ulCarryOut;
+static uint32_t s_ulCarryOut1;
 
 static inline uint32_t AddrOffsetBW(uint32_t ulOpCode)
 {
@@ -13,7 +13,7 @@ static inline uint32_t AddrOffsetBW(uint32_t ulOpCode)
 	s_ulPcDelta = 0;
 
 	if ( (ulOpCode & (1UL << 25)) != 0 ){
-		s_ulCarryOut = CPSR_FLAG_MASK_C & g_cpsr;	//c flag untouched
+		s_ulCarryOut1 = CPSR_FLAG_MASK_C & g_cpsr;	//c flag untouched
 		return ulOpCode & 0x0FFF;
 	}
 
@@ -21,41 +21,42 @@ static inline uint32_t AddrOffsetBW(uint32_t ulOpCode)
 	foo = g_regs[INT_BITS(uint32_t, ulOpCode, 0, 4)];
 	samount = INT_BITS(uint32_t, ulOpCode, 7, 5);
 	switch ( INT_BITS(uint32_t, ulOpCode, 5, 2) ){
-	case 0b00:
+	case 0:
 		if ( samount == 0 ){
-			s_ulCarryOut = CPSR_FLAG_MASK_C & g_cpsr;
+			s_ulCarryOut1 = CPSR_FLAG_MASK_C & g_cpsr;
 			return foo;
 		}
 		foo <<= ( samount - 1 );
-		s_ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );
+		s_ulCarryOut1 = ( foo & 0x80000000 ) >> ( 31 - 29 );
 		return foo << 1;
-	case 0b01:
+	case 1:
 		if ( samount == 0 ) samount = 32;
 		foo >>= samount - 1;
-		s_ulCarryOut = ( foo  & 0x01 ) << 29;
+		s_ulCarryOut1 = ( foo  & 0x01 ) << 29;
 		return foo >> 1;
-	case 0b10:
+	case 2:
 		if ( samount == 0 ) samount = 32;
 		foo = uint32_t( int32_t(foo) >> ( samount - 1 ) );
-		s_ulCarryOut = ( foo  & 0x01 ) << 29;
+		s_ulCarryOut1 = ( foo  & 0x01 ) << 29;
 		return uint32_t( int32_t(foo) >> 1 );
-	case 0b11:
+	case 3:
 		if ( samount == 0 ){
-			s_ulCarryOut = ( foo  & 0x01 ) << 29;
+			s_ulCarryOut1 = ( foo  & 0x01 ) << 29;
 			return ( foo >> 1 ) | ( ( g_cpsr & CPSR_FLAG_MASK_C ) << (31 - 29) );
 		}
 		foo = ( foo >> samount ) | ( foo << ( 32 - samount ) );
-		s_ulCarryOut = ( foo & 0x80000000 ) >> ( 31 - 29 );
-		return foo;
+		s_ulCarryOut1 = ( foo & 0x80000000 ) >> ( 31 - 29 );
 	}
+	return foo; //case 3 only, to suppress warning
 }
 
 FASTCALL uint32_t Op_LDRB(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetBW(ulOpCode): g_regs[rni] - AddrOffsetBW(ulOpCode);
-	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut;	//the carry flag probably should not be set, or should not be set here.
+	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut1;	//the carry flag probably should not be set, or should not be set here.
 
 	g_usTicksThisPiece += 2;
 
@@ -82,10 +83,11 @@ FASTCALL uint32_t Op_LDRB(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_LDRW(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetBW(ulOpCode): g_regs[rni] - AddrOffsetBW(ulOpCode);
-	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut;	//the carry flag probably should not be set, or should not be set here.
+	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut1;	//the carry flag probably should not be set, or should not be set here.
 
 	g_usTicksThisPiece += 2;
 
@@ -95,13 +97,13 @@ FASTCALL uint32_t Op_LDRW(uint32_t ulOpCode)
 		}
 		g_regs[15] += 4;	//when exception happens, the pc is 1 more word ahead
 		uint32_t foo = phym_read32(ulAddr);
-		g_regs[rdi] = (foo >> ((ulAddr & 0b0011UL) * 8)) | (foo << (32 - (ulAddr & 0b0011UL) * 8));
+		g_regs[rdi] = (foo >> ((ulAddr & 3UL) * 8)) | (foo << (32 - (ulAddr & 3UL) * 8));
 	}
 	else{
 		uint32_t ulAddr1 = g_regs[rni];	//the 1st exe cycle thing, but actually this may not be necessary since rni cannot be pc
 		g_regs[15] += 4;
 		uint32_t foo = phym_read32(ulAddr1);
-		g_regs[rdi] = (foo >> ((ulAddr & 0b0011UL) * 8)) | (foo << (32 - (ulAddr & 0b0011UL) * 8));
+		g_regs[rdi] = (foo >> ((ulAddr & 3UL) * 8)) | (foo << (32 - (ulAddr & 3UL) * 8));
 		g_regs[rni] = ulAddr;	//no write-back to PC; & for post-alternating, it is a mandatory.
 	}
 	if ( rdi == 15 ){
@@ -114,10 +116,11 @@ FASTCALL uint32_t Op_LDRW(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_STRB(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rsi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetBW(ulOpCode): g_regs[rni] - AddrOffsetBW(ulOpCode);
-	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut;	//the carry flag probably should not be set, or should not be set here.
+	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut1;	//the carry flag probably should not be set, or should not be set here.
 
 	g_usTicksThisPiece ++;
 
@@ -142,10 +145,11 @@ FASTCALL uint32_t Op_STRB(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_STRW(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rsi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetBW(ulOpCode): g_regs[rni] - AddrOffsetBW(ulOpCode);
-	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut;	//the carry flag probably should not be set, or should not be set here.
+	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut1;	//the carry flag probably should not be set, or should not be set here.
 
 	g_usTicksThisPiece ++;
 
@@ -179,6 +183,7 @@ static inline uint32_t AddrOffsetHS(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_LDRH(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetHS(ulOpCode): g_regs[rni] - AddrOffsetHS(ulOpCode);
@@ -208,6 +213,7 @@ FASTCALL uint32_t Op_LDRH(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_LDRSH(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetHS(ulOpCode): g_regs[rni] - AddrOffsetHS(ulOpCode);
@@ -237,6 +243,7 @@ FASTCALL uint32_t Op_LDRSH(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_LDRSB(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetHS(ulOpCode): g_regs[rni] - AddrOffsetHS(ulOpCode);
@@ -266,10 +273,11 @@ FASTCALL uint32_t Op_LDRSB(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_STRH(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rsi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetBW(ulOpCode): g_regs[rni] - AddrOffsetBW(ulOpCode);
-	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut;	//the carry flag probably should not be set, or should not be set here.
+	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut1;	//the carry flag probably should not be set, or should not be set here.
 
 	g_usTicksThisPiece ++;
 
@@ -294,6 +302,7 @@ FASTCALL uint32_t Op_STRH(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_LDM(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t ulAddr = g_regs[rni] & 0xFFFFFFFC;
 
@@ -301,12 +310,12 @@ FASTCALL uint32_t Op_LDM(uint32_t ulOpCode)
 	uint32_t ulCount = 0;
 	bool bR15 = false;
 	uint32_t ulTargetRn;
-	if ( ulOpCode & ( 1UL << 15 ) != 0 ){
+	if ( (ulOpCode & ( 1UL << 15 )) != 0 ){
 		ulCount++;
 		bR15 = true;
 	}
 	for ( int i = 14; i >= 0; i--){
-		if ( ulOpCode & ( 1UL << i ) != 0 ) ulCount++;
+		if ( (ulOpCode & ( 1UL << i )) != 0 ) ulCount++;
 	}
 	if ( (ulOpCode & (1UL << 23)) != 0 ){	//inc
 		ulTargetRn = ulAddr + ulCount * 4;
@@ -330,7 +339,7 @@ FASTCALL uint32_t Op_LDM(uint32_t ulOpCode)
 		if ( bR15 ){
 			try{
 				for ( int i = 0; i < 15; i++ ){
-					if ( ulOpCode & ( 1UL << i ) != 0 ){
+					if ( (ulOpCode & ( 1UL << i )) != 0 ){
 						g_usTicksThisPiece++;
 						g_regs[i] = phym_read32(ulAddr);
 						ulAddr += 4;
@@ -341,36 +350,36 @@ FASTCALL uint32_t Op_LDM(uint32_t ulOpCode)
 				BackFromExp(pc);
 				return 1;
 			}
-			catch (uint32_t ul){
+			catch (uint32_t){
 				g_regs[rni] = ulTargetRn;	//not sure restore is right on W==0, but otherwise not reasonable if rn is written
 				RaiseExp(EXP_ABT, -4);
 				return 1;
 			}
 		}
 		else{	//load to user mode registers
-			SwitchRegs(g_cpsr & 0x0FUL, MODE_USER);
+			SwitchRegs(g_cpsr & 0x0FUL, MODE_USR);
 			try{
 				for ( int i = 0; i < 15; i++ ){
-					if ( ulOpCode & ( 1UL << i ) != 0 ){
+					if ( (ulOpCode & ( 1UL << i )) != 0 ){
 						g_usTicksThisPiece++;
 						g_regs[i] = phym_read32(ulAddr);
 						ulAddr += 4;
 					}
 				}
 			}
-			catch (uint32_t ul){
-				SwitchRegs(MODE_USER, g_cpsr & 0x0FUL);
+			catch (uint32_t){
+				SwitchRegs(MODE_USR, g_cpsr & 0x0FUL);
 				g_regs[rni] = ulTargetRn;	//rn still can be written with user view, should rn be restored once?
 				RaiseExp(EXP_ABT, -4);
 				return 1;
 			}
-			SwitchRegs(MODE_USER, g_cpsr & 0x0FUL);
+			SwitchRegs(MODE_USR, g_cpsr & 0x0FUL);
 		}
 	}
 	else{
 		try{
 			for ( int i = 0; i < 15; i++ ){
-				if ( ulOpCode & ( 1UL << i ) != 0 ){
+				if ( (ulOpCode & ( 1UL << i )) != 0 ){
 					g_usTicksThisPiece++;
 					g_regs[i] = phym_read32(ulAddr);
 					ulAddr += 4;
@@ -378,11 +387,11 @@ FASTCALL uint32_t Op_LDM(uint32_t ulOpCode)
 			}
 			if ( bR15 ){
 				g_usTicksThisPiece++;
-				g_regs[i] = phym_read32(ulAddr);
+				g_regs[15] = phym_read32(ulAddr);
 				return 1;
 			}
 		}
-		catch (uint32_t ul){
+		catch (uint32_t){
 			g_regs[rni] = ulTargetRn;
 			RaiseExp(EXP_ABT, -4);
 			return 1;
@@ -394,6 +403,7 @@ FASTCALL uint32_t Op_LDM(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_STM(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t ulAddr = g_regs[rni] & 0xFFFFFFFC;
 
@@ -402,7 +412,7 @@ FASTCALL uint32_t Op_STM(uint32_t ulOpCode)
 	uint32_t ulFirst = 0;
 	uint32_t ulTargetRn;
 	for ( int i = 15; i >= 0; i--){
-		if ( ulOpCode & ( 1UL << i ) != 0 ){
+		if ( (ulOpCode & ( 1UL << i )) != 0 ){
 			ulCount++;
 			ulFirst = (uint32_t)i;
 		}
@@ -425,27 +435,27 @@ FASTCALL uint32_t Op_STM(uint32_t ulOpCode)
 
 	if ( (ulOpCode & (1UL << 22)) != 0 ){	//S
 		//load to user mode registers, W must be 0
-		SwitchRegs(g_cpsr & 0x0FUL, MODE_USER);
+		SwitchRegs(g_cpsr & 0x0FUL, MODE_USR);
 		try{
 			for ( int i = 0; i < 16; i++ ){
-				if ( ulOpCode & ( 1UL << i ) != 0 ){
+				if ( (ulOpCode & ( 1UL << i )) != 0 ){
 					g_usTicksThisPiece++;
 					phym_write32(ulAddr, g_regs[i]);
 					ulAddr += 4;
 				}
 			}
 		}
-		catch (uint32_t ul){
-			SwitchRegs(MODE_USER, g_cpsr & 0x0FUL);
+		catch (uint32_t){
+			SwitchRegs(MODE_USR, g_cpsr & 0x0FUL);
 			RaiseExp(EXP_ABT, -4);
 			return 1;
 		}
-		SwitchRegs(MODE_USER, g_cpsr & 0x0FUL);
+		SwitchRegs(MODE_USR, g_cpsr & 0x0FUL);
 	}
 	else{
 		try{
 			for ( int i = 0; i < 15; i++ ){
-				if ( ulOpCode & ( 1UL << i ) != 0 ){
+				if ( (ulOpCode & ( 1UL << i )) != 0 ){
 					g_usTicksThisPiece++;
 					phym_write32(ulAddr, g_regs[i]);
 					ulAddr += 4;
@@ -453,7 +463,7 @@ FASTCALL uint32_t Op_STM(uint32_t ulOpCode)
 				}
 			}
 		}
-		catch (uint32_t ul){
+		catch (uint32_t){
 			//g_regs[rni] = ulTargetRn;	//should rn be updated when abort happens on the first reg transfer?
 			RaiseExp(EXP_ABT, -4);
 			return 1;
@@ -465,6 +475,7 @@ FASTCALL uint32_t Op_STM(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_SWPB(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulSrc = g_regs[INT_BITS(uint32_t, ulOpCode, 0, 4)];
 	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
@@ -484,6 +495,7 @@ FASTCALL uint32_t Op_SWPB(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_SWPW(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulSrc = g_regs[INT_BITS(uint32_t, ulOpCode, 0, 4)];
 	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
@@ -494,7 +506,7 @@ FASTCALL uint32_t Op_SWPW(uint32_t ulOpCode)
 	uint32_t foo = phym_read32(ulAddr);
 	g_usTicksThisPiece++;
 	phym_write32(ulAddr & 0xFFFFFFFC/*not sure this is right*/, ulSrc);
-	g_regs[rdi] = (foo >> ((ulAddr & 0b0011UL) * 8)) | (foo << (32 - (ulAddr & 0b0011UL) * 8));
+	g_regs[rdi] = (foo >> ((ulAddr & 3UL) * 8)) | (foo << (32 - (ulAddr & 3UL) * 8));
 
 	g_usTicksThisPiece++;
 	g_regs[15] -= 4;
@@ -503,25 +515,28 @@ FASTCALL uint32_t Op_SWPW(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_MRS(uint32_t ulOpCode)
 {
-	uint32_t ulSrc = ulOpCode & (1UL << 22) == 0? g_cpsr: g_spsr;
+	TRACE_INSTR(ulOpCode, 0);
+	uint32_t ulSrc = (ulOpCode & (1UL << 22)) == 0? g_cpsr: g_spsr;
 	g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = ulSrc;
 	return 0;
 }
 
 FASTCALL uint32_t Op_MSR(uint32_t ulOpCode)
 {//this won't be done in user mode?
-	if ( ulOpCode & (1UL << 22) == 0 ){
+	TRACE_INSTR(ulOpCode, 0);
+	if ( (ulOpCode & (1UL << 22)) == 0 ){
 		//g_cpsr = g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)];
-		SwitchToMode(g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)]);
+		SwitchToMode(g_regs[INT_BITS(uint32_t, ulOpCode, 0, 4)]);
 	}
 	else
-		g_spsr = g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)];
+		g_spsr = g_regs[INT_BITS(uint32_t, ulOpCode, 0, 4)];
 	return 0;
 }
 
 FASTCALL uint32_t Op_MSRFR(uint32_t ulOpCode)
 {
-	if ( ulOpCode & (1UL << 22) == 0 )
+	TRACE_INSTR(ulOpCode, 0);
+	if ( (ulOpCode & (1UL << 22)) == 0 )
 		g_cpsr = (g_cpsr & 0x0FFFFFFF) | (g_regs[INT_BITS(uint32_t, ulOpCode, 0, 4)] & 0xF0000000);
 	else
 		g_spsr = (g_spsr & 0x0FFFFFFF) | (g_regs[INT_BITS(uint32_t, ulOpCode, 0, 4)] & 0xF0000000);
@@ -530,12 +545,13 @@ FASTCALL uint32_t Op_MSRFR(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_MSRFI(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	//the same as imm oprd2, without carry out, for even carry bit is set, it will be overwritten anyway
 	uint32_t foo = ulOpCode & 0x000000FF;
 	uint32_t samount = INT_BITS(uint32_t, ulOpCode, 8, 4) << 1;
 	foo = ( foo >> samount ) | ( foo << ( 32 - samount ) );
 
-	if ( ulOpCode & (1UL << 22) == 0 )
+	if ( (ulOpCode & (1UL << 22)) == 0 )
 		g_cpsr = (g_cpsr & 0x0FFFFFFF) | (foo & 0xF0000000);
 	else
 		g_spsr = (g_spsr & 0x0FFFFFFF) | (foo & 0xF0000000);

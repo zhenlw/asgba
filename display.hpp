@@ -4,12 +4,12 @@
 class DispLayer
 {
 public:
-    virtual void ReloadCtl(uint16_t usCtlAddr) = NULL;
-    virtual void StartLine(uint16_t y) = NULL;
-    virtual uint16_t Render(uint16_t x) = NULL;
+    virtual void ReloadCtl(uint16_t usCtlAddr) = 0;
+    virtual void StartLine(uint16_t y) = 0;
+    virtual uint16_t Render(uint16_t x) = 0;
 };
 
-class TiledBg: DispLayer
+class TiledBg: public DispLayer
 {
 private:
     uint16_t m_usTileMapBase;
@@ -81,7 +81,7 @@ uint16_t TiledBg::Render(uint16_t x)
     return g_arrStorPalram[byDotPalette] & 0x7FFF;
 }
 
-class TiledBgRS: DispLayer
+class TiledBgRS: public DispLayer
 {
 private:
     uint16_t m_usTileMapBase;
@@ -121,10 +121,10 @@ void TiledBgRS::ReloadCtl(uint16_t usCtlAddr)
     m_ulStartX = ( m_ulStartX & 0x0FFFFFFF ) | ((0x0UL - m_ulStartX) & 0x08000000);
     m_ulStartY = *(uint32_t*)(g_arrDevRegCache + 0x002C + (usCtlAddr - 0x000C) * 0x0008);
     m_ulStartY = ( m_ulStartY & 0x0FFFFFFF ) | ((0x0UL - m_ulStartY) & 0x08000000);
-    m_ulDx  = uint32_t(int32_t)(*(int16_t*)(g_arrDevRegCache + 0x0020 + (usCtlAddr - 0x000C) * 0x0008);
-    m_ulDmx = uint32_t(int32_t)(*(int16_t*)(g_arrDevRegCache + 0x0022 + (usCtlAddr - 0x000C) * 0x0008);
-    m_ulDy  = uint32_t(int32_t)(*(int16_t*)(g_arrDevRegCache + 0x0024 + (usCtlAddr - 0x000C) * 0x0008);
-    m_ulDmy = uint32_t(int32_t)(*(int16_t*)(g_arrDevRegCache + 0x0026 + (usCtlAddr - 0x000C) * 0x0008);
+    m_ulDx  = (uint32_t)(int32_t)(*(int16_t*)(g_arrDevRegCache + 0x0020 + (usCtlAddr - 0x000C) * 0x0008));
+    m_ulDmx = (uint32_t)(int32_t)(*(int16_t*)(g_arrDevRegCache + 0x0022 + (usCtlAddr - 0x000C) * 0x0008));
+    m_ulDy  = (uint32_t)(int32_t)(*(int16_t*)(g_arrDevRegCache + 0x0024 + (usCtlAddr - 0x000C) * 0x0008));
+    m_ulDmy = (uint32_t)(int32_t)(*(int16_t*)(g_arrDevRegCache + 0x0026 + (usCtlAddr - 0x000C) * 0x0008));
 }
 
 void TiledBgRS::StartLine(uint16_t y)

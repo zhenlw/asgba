@@ -1,19 +1,13 @@
-#include <phymem.h>
+#include "phymem.h"
+#include "cpu.h"
 
 //modes & status
-const uint32 MODE_USR = 0; //ignore the 5th 1 for easier operation
-const uint32 MODE_FIQ = 1;
-const uint32 MODE_IRQ = 2;
-const uint32 MODE_SVC = 3;
-const uint32 MODE_ABT = 7;
-const uint32 MODE_UND = 0xB;
-const uint32 MODE_SYS = 0xF;
 
-const uint32 STATE_THUMB = 0x20;
-const uint32 STATE_ARM = 0x0;
+const uint32_t STATE_THUMB = 0x20;
+const uint32_t STATE_ARM = 0x0;
 
-const uint32 EXP_DISABLE_IF[EXP_FIQ + 1] = {0x80 + 0x40, 0, 0x80, 0, 0, 0, 0x80, 0x80 + 0x40};
-const uint32 EXP_TGT_MODE[EXP_FIQ + 1] = {MODE_SVC, MODE_UND, MODE_SVC, MODE_ABT, MODE_ABT, 0xFF, MODE_IRQ, MODE_FIQ};
+const uint32_t EXP_DISABLE_IF[EXP_FIQ + 1] = {0x80 + 0x40, 0, 0x80, 0, 0, 0, 0x80, 0x80 + 0x40};
+const uint32_t EXP_TGT_MODE[EXP_FIQ + 1] = {MODE_SVC, MODE_UND, MODE_SVC, MODE_ABT, MODE_ABT, 0xFF, MODE_IRQ, MODE_FIQ};
 
 //registers
 uint32_t g_regsBak[MODE_SYS][17];	//the 17th is spsr. all registers are backed up here, but only banked are restore on swtiching-to
@@ -28,7 +22,7 @@ uint32_t g_nirq;	//set to CPSR_FLAG_MASK_I when irq happens
 void CpuCycles();
 void InitCpu_();
 
-inline void SwitchRegs(uint32_t ulFrom, uint32_t ulTo)
+void SwitchRegs(uint32_t ulFrom, uint32_t ulTo)
 {
 	ulFrom %= 14;
 	ulTo %= 14;
@@ -65,7 +59,7 @@ void SwitchToMode(uint32_t ulNewCpsr)
 	SwitchRegs(ulCurrMode, ulToMode);
 }
 
-void RaiseExp(ExpType eType, int32_t ulPcDelta)
+void RaiseExp(ExpType eType, int32_t lPcDelta)
 {
     uint32_t ulCurrMode = g_cpsr & 0x0FUL;
     uint32_t ulToMode = EXP_TGT_MODE[eType];
@@ -77,7 +71,7 @@ void RaiseExp(ExpType eType, int32_t ulPcDelta)
     g_cpsr &= ~STATE_THUMB;
     g_cpsr |= EXP_DISABLE_IF[eType];
     g_cpsr = g_cpsr & 0xFFFFFFF0 | ( ulToMode + 0x10 );
-    g_regs[14] = g_regs[15] + ulPcDelta;
+    g_regs[14] = g_regs[15] + lPcDelta;
     g_regs[15] = 0 + eType * 4;
 
     //count ticks up
@@ -99,13 +93,16 @@ void BackFromExp(uint32_t ulNewPc)	//triggered on pc/r15 assigning with 'S' bit 
 	g_usTicksThisPiece += 2;
 }
 
-void CheckIRQ();
+FASTCALL void CheckIRQ();
+FASTCALL void DoDmaPiece();
+FASTCALL void DoTimerUpdate();
+FASTCALL bool DoDispTicksUpdate();
 
 //sys ticks related, actually not real cpu work, but anyway
 uint16_t g_usTicksThisPiece;
 
 //main entrance, not only cpu work
-void Exec()
+void AsgbaExec()
 {
     while (true) {
         g_usTicksThisPiece = 0;
@@ -115,12 +112,13 @@ void Exec()
 
         //ticks processing, timer and video
         DoTimerUpdate();
-        DoDispTicksUpdate();
+        if ( DoDispTicksUpdate() == false )
+			break;
 
         //irq are only checked here
         CheckIRQ();	//this is the check of the informal data to serialize the input in the cpu thread
 
-        if ( g_cpsr & g_nirq != 0 ){	//this is the check of the formal flag
+        if ( ( g_cpsr & g_nirq ) != 0 ){	//this is the check of the formal flag
         	RaiseExp(EXP_IRQ, 4);
         }
     }

@@ -1,5 +1,6 @@
 #include "phymem.h"
 #include "interrupt.h"
+#include "cpu.h"
 
 struct DmaStatus{
 	enum {Stopped = 0, Running, Stalled} eState;	//actual state
@@ -51,12 +52,12 @@ static void DmaSet(uint16_t idx)
     }
     else{
         flag = REG_BITS(uint16_t, usBsAddr + 0x0A, 5, 2);
-		if ( flag == 0b11 ){
+		if ( flag == 3 ){
 			pS->lIncD = 1;
 			pS->bReloadDesOnRepeat = true;
 		}
 		else if ( flag == 0 ) pS->lIncD = 1;
-        else if ( flag == 0b01 ) pS->lIncD = -1;
+        else if ( flag == 1 ) pS->lIncD = -1;
         else pS->lIncD = 0;
 
 	    //granularity, count
@@ -72,7 +73,7 @@ static void DmaSet(uint16_t idx)
     flag = REG_BITS(uint16_t, usBsAddr + 0x0A, 7, 2);
     //if ( flag == 0b11 )   //exception?
 	if ( flag == 0 ) pS->lIncS = 1;
-    else if ( flag == 0b01 ) pS->lIncS = -1;
+    else if ( flag == 1 ) pS->lIncS = -1;
     else pS->lIncS = 0;
 
     //adjust per granularity
@@ -107,7 +108,7 @@ void DmaEvent(SystemEvent e)
 						pS->ulAddrD = REG_BITS(uint32_t, usBsAddr + 4, 0, 27);
 					}
 				}
-				pS->eStartEvent == DmaStatus::Running;
+				pS->eState = DmaStatus::Running;
 				//break;
 			}
 			pS++;
@@ -116,7 +117,7 @@ void DmaEvent(SystemEvent e)
 	}
 }
 
-void DoDmaPiece()
+FASTCALL void DoDmaPiece()
 {
 	DmaStatus *pS = s_DmaStatus;
 	for ( uint8_t i = 4; i != 0; i-- ){
@@ -127,14 +128,14 @@ void DoDmaPiece()
 			pS->ulCount -= cnt;
 			g_usTicksThisPiece += cnt * 2;
 			if ( pS->b32bit ){
-				for ( ; cnt--; cnt > 0 ){
+				for ( ; cnt > 0; cnt-- ){
 					phym_write32(pS->ulAddrD, phym_read32(pS->ulAddrS));
 					pS->ulAddrS += pS->lIncS;
 					pS->ulAddrD += pS->lIncD;
 				}
 			}
 			else{
-				for ( ; cnt--; cnt > 0 ){
+				for ( ; cnt > 0; cnt-- ){
 					phym_write16(pS->ulAddrD, phym_read16(pS->ulAddrS));
 					pS->ulAddrS += pS->lIncS;
 					pS->ulAddrD += pS->lIncD;
@@ -160,7 +161,7 @@ void DoDmaPiece()
 static void dma0ctl(uint8_t arrVal[], uint8_t size)
 {
 	g_arrDevRegCache[0xBB] = *arrVal;
-    if ( arrVal[0] & 0x80 != 0 ){    //starting, or should the previous state be 0 to start the dma?
+    if ( (arrVal[0] & 0x80) != 0 ){    //starting, or should the previous state be 0 to start the dma?
 									//The setting loading is a must. the starting is at least very possible at 1->1. So assume dma starts always
         DmaSet(0);
     }
@@ -173,7 +174,7 @@ static void dma0ctl(uint8_t arrVal[], uint8_t size)
 static void dma1ctl(uint8_t arrVal[], uint8_t size)
 {
 	g_arrDevRegCache[0xC7] = *arrVal;
-    if ( arrVal[0] & 0x80 != 0 ){
+    if ( (arrVal[0] & 0x80) != 0 ){
         DmaSet(1);
     }
     else{
@@ -185,7 +186,7 @@ static void dma1ctl(uint8_t arrVal[], uint8_t size)
 static void dma2ctl(uint8_t arrVal[], uint8_t size)
 {
 	g_arrDevRegCache[0xD3] = *arrVal;
-    if ( arrVal[0] & 0x80 != 0 ){    //starting, or should the previous state be checked? seems not: a start should be done anyway
+    if ( (arrVal[0] & 0x80) != 0 ){    //starting, or should the previous state be checked? seems not: a start should be done anyway
         DmaSet(2);
     }
     else{
@@ -197,7 +198,7 @@ static void dma2ctl(uint8_t arrVal[], uint8_t size)
 static void dma3ctl(uint8_t arrVal[], uint8_t size)
 {
 	g_arrDevRegCache[0xDF] = *arrVal;
-    if ( arrVal[0] & 0x80 != 0 ){    //starting, or should the previous state be checked? seems not: a start should be done anyway
+    if ( (arrVal[0] & 0x80) != 0 ){    //starting, or should the previous state be checked? seems not: a start should be done anyway
         DmaSet(3);
     }
     else{

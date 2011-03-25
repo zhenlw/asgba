@@ -8,17 +8,9 @@
 #ifndef CPU_H_
 #define CPU_H_
 
-extern const uint32 MODE_USR; //ignore the 5th 1 for easier operation
-extern const uint32 MODE_FIQ;
-extern const uint32 MODE_IRQ;
-extern const uint32 MODE_SVC;
-extern const uint32 MODE_ABT;
-extern const uint32 MODE_UND;
-extern const uint32 MODE_SYS;
-
 enum ExpType {EXP_RESET = 0, EXP_UNDI, EXP_SWI, EXP_PABT, EXP_ABT, EXP_NONE, EXP_IRQ, EXP_FIQ};
 
-void RaiseExp(ExpType eType, uint32_t ulPcDelta);
+void RaiseExp(ExpType eType, int32_t lPcDelta);
 
 extern uint32_t g_cpsr;
 extern uint32_t g_regs[17];
@@ -26,8 +18,6 @@ extern uint32_t &g_spsr;
 extern uint32_t &g_pc;
 
 extern uint32_t g_nirq;	//set to CPSR_FLAG_MASK_I when irq happens
-
-inline void SwitchRegs(uint32_t ulFrom, uint32_t ulTo);
 
 #define CPSR_FLAG_MASK_V	(uint32_t(1) << 28)
 #define CPSR_FLAG_MASK_C	(uint32_t(1) << 29)
@@ -38,6 +28,19 @@ inline void SwitchRegs(uint32_t ulFrom, uint32_t ulTo);
 
 #define CPSR_FLAG_MASK_I	(uint32_t(1) << 7)
 
-enum SystemEvent{EVT_NONE = 0, EVT_VBLK, EVT_HBLK, EVT_FIFO, EVT_VSTART, EVT_HSTART, EVT_FIFO_FULL};
+extern uint16_t g_usTicksThisPiece;
+
+//cpu modes, ignore the 5th 1 for easier operation
+#define MODE_USR		0
+#define MODE_FIQ		1UL
+#define MODE_IRQ		2UL
+#define MODE_SVC		3UL
+#define MODE_ABT		7UL
+#define MODE_UND		0xBUL
+#define MODE_SYS		0xFUL
+
+void SwitchRegs(uint32_t ulFrom, uint32_t ulTo);
+void SwitchToMode(uint32_t ulNewCpsr);
+void BackFromExp(uint32_t ulNewPc);
 
 #endif /* CPU_H_ */

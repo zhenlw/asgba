@@ -29,7 +29,7 @@ static void InitBlockArea(uint32_t ulAeraStart, uint32_t ulAeraSize, uint8_t *pS
 	}
 }
 
-void PhyMemInit()
+void PhyMemInit(uint8_t *bios)
 {
     //main blocks desc
     InitBlockArea(0, sizeof(g_arrStorBios), g_arrStorBios, sizeof(g_arrStorBios), false);
@@ -50,14 +50,14 @@ void PhyMemInit()
         g_arrDevRegWritable[i] = 1;
     }
 
-    //init actions from devices, they are called by a general init routine, just call them after mem init
+    memcpy(g_arrStorBios, bios, sizeof(g_arrStorBios));
 }
 
-uint8_t phym_read8(uint32_t addr)
+uint8_t phym_read8(uint32_t addr) throw(uint32_t)
 {
     struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
-        return *( pBD + ( addr & 0x3FF ) );
+        return *( pBD->pBase + ( addr & 0x3FF ) );
     }
 
     //registers
@@ -69,12 +69,12 @@ uint8_t phym_read8(uint32_t addr)
     throw addr;
 }
 
-void phym_write8(uint32_t addr, uint8_t val)
+void phym_write8(uint32_t addr, uint8_t val) throw(uint32_t)
 {
     struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
         if ( pBD->bWritable ){
-            *( pBD + ( addr & 0x3FF ) ) = val;
+            *( pBD->pBase + ( addr & 0x3FF ) ) = val;
             return;
         }
         throw addr;
@@ -90,12 +90,12 @@ void phym_write8(uint32_t addr, uint8_t val)
     throw addr;	//enough info?
 }
 
-uint16_t phym_read16(uint32_t addr)
+uint16_t phym_read16(uint32_t addr) throw(uint32_t)
 {
 	addr &= 0xFFFFFFFE;
     struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
-        return *(uint16_t*)( pBD + ( addr & 0x3FF ) );
+        return *(uint16_t*)( pBD->pBase + ( addr & 0x3FF ) );
     }
 
     //registers
@@ -110,13 +110,13 @@ uint16_t phym_read16(uint32_t addr)
     throw addr;
 }
 
-void phym_write16(uint32_t addr, uint16_t val)
+void phym_write16(uint32_t addr, uint16_t val) throw(uint32_t)
 {
 	addr &= 0xFFFFFFFE;
     struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
         if ( pBD->bWritable ){
-            *(uint16_t*)( pBD + ( addr & 0x3FF ) ) = val;
+            *(uint16_t*)( pBD->pBase + ( addr & 0x3FF ) ) = val;
             return;
         }
         throw addr;
@@ -144,12 +144,12 @@ void phym_write16(uint32_t addr, uint16_t val)
     throw addr;
 }
 
-uint32_t phym_read32(uint32_t addr)
+uint32_t phym_read32(uint32_t addr) throw(uint32_t)
 {
 	addr &= 0xFFFFFFFC;
     struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
-        return *(uint32_t*)( pBD + ( addr & 0x3FF ) );
+        return *(uint32_t*)( pBD->pBase + ( addr & 0x3FF ) );
     }
 
     //registers
@@ -168,13 +168,13 @@ uint32_t phym_read32(uint32_t addr)
     throw addr;
 }
 
-void phym_write32(uint32_t addr, uint32_t val)
+void phym_write32(uint32_t addr, uint32_t val) throw(uint32_t)
 {
 	addr &= 0xFFFFFFFC;
     struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
         if ( pBD->bWritable ){
-            *(uint32_t*)( pBD + ( addr & 0x3FF ) ) = val;
+            *(uint32_t*)( pBD->pBase + ( addr & 0x3FF ) ) = val;
             return;
         }
         throw addr;
