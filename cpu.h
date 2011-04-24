@@ -10,7 +10,7 @@
 
 enum ExpType {EXP_RESET = 0, EXP_UNDI, EXP_SWI, EXP_PABT, EXP_ABT, EXP_NONE, EXP_IRQ, EXP_FIQ};
 
-void RaiseExp(ExpType eType, int32_t lPcDelta);
+void RaiseExp(ExpType eType, uint32_t ulSavedPc);
 
 extern uint32_t g_cpsr;
 extern uint32_t g_regs[17];
@@ -29,6 +29,8 @@ extern uint32_t g_nirq;	//set to CPSR_FLAG_MASK_I when irq happens
 #define CPSR_FLAG_MASK_I	(uint32_t(1) << 7)
 
 extern uint16_t g_usTicksThisPiece;
+
+extern uint32_t g_ulPcDelta;	//2 or 4. for convenience. valid only when a piece of cpu codes is executing
 
 //cpu modes, ignore the 5th 1 for easier operation
 #define MODE_USR		0

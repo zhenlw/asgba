@@ -4,14 +4,18 @@
 #include <wx/thread.h> // Base class: wxThread
 #include <wx/event.h>
 
+extern wxCriticalSection g_csWorker;
+extern bool g_bStopWorker;
+
 class Worker : public wxThread {
+private:
 
 public:
 	Worker();
 	~Worker();
 
-public:
 	virtual void* Entry();
+	void Stop();	//run in other thread
 };
 
 BEGIN_DECLARE_EVENT_TYPES()

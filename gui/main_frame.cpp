@@ -3,8 +3,11 @@
 
 BEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU(ID_Run,  MainFrame::OnRun)
+	EVT_MENU(ID_Stop,  MainFrame::OnStop)
     EVT_MENU(ID_Quit, MainFrame::OnQuit)
-	EVT_COMMAND(0, WORKER_NOTIFY_EVT, MainFrame::OnNotifyFromWorker) 
+	EVT_CLOSE(MainFrame::OnClose)
+	EVT_COMMAND(0, WORKER_NOTIFY_EVT, MainFrame::OnNotifyFromWorker)
+	EVT_PAINT(MainFrame::OnPaint)
 END_EVENT_TABLE()
 
 MainFrame::MainFrame()
@@ -15,6 +18,7 @@ MainFrame::MainFrame()
     wxMenu *menuFile = new wxMenu;
 
     menuFile->Append(ID_Run, wxT("&Run"));
+    menuFile->Append(ID_Stop, wxT("&Stop"));
     menuFile->AppendSeparator();
     menuFile->Append(ID_Quit, wxT("E&xit"));
 
@@ -32,6 +36,14 @@ MainFrame::~MainFrame()
 	if ( NULL != m_pBmp ) delete m_pBmp;
 }
 
+void MainFrame::OnClose(wxCloseEvent &e)
+{
+	if ( m_Worker.IsRunning() ){
+		m_Worker.Stop();
+	}
+	Destroy();
+}
+
 void MainFrame::OnQuit(wxCommandEvent& e)
 {
 	Close();
@@ -40,7 +52,16 @@ void MainFrame::OnQuit(wxCommandEvent& e)
 void MainFrame::OnRun(wxCommandEvent& e)
 {
 	m_Worker.Create();
+
+	wxCriticalSectionLocker locker(g_csWorker);
+	g_bStopWorker = false;
+
 	m_Worker.Run();
+}
+
+void MainFrame::OnStop(wxCommandEvent& e)
+{
+	m_Worker.Stop();
 }
 
 void MainFrame::OnNotifyFromWorker(wxCommandEvent& e)
@@ -54,4 +75,13 @@ void MainFrame::OnNotifyFromWorker(wxCommandEvent& e)
 
 	if ( NULL != m_pBmp ) delete m_pBmp;
 	m_pBmp = (wxBitmap *)(e.GetClientData());
+	this->Refresh();
+}
+
+void MainFrame::OnPaint(wxPaintEvent& event)
+{
+	wxPaintDC dc(this);
+
+	if ( m_pBmp != NULL )
+		dc.DrawBitmap(*m_pBmp, 0, 0);
 }

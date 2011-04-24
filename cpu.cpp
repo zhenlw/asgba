@@ -9,6 +9,8 @@ const uint32_t STATE_ARM = 0x0;
 const uint32_t EXP_DISABLE_IF[EXP_FIQ + 1] = {0x80 + 0x40, 0, 0x80, 0, 0, 0, 0x80, 0x80 + 0x40};
 const uint32_t EXP_TGT_MODE[EXP_FIQ + 1] = {MODE_SVC, MODE_UND, MODE_SVC, MODE_ABT, MODE_ABT, 0xFF, MODE_IRQ, MODE_FIQ};
 
+uint32_t g_ulPcDelta;
+
 //registers
 uint32_t g_regsBak[MODE_SYS][17];	//the 17th is spsr. all registers are backed up here, but only banked are restore on swtiching-to
 uint32_t g_cpsr;
@@ -52,6 +54,7 @@ void SwitchToMode(uint32_t ulNewCpsr)
 {
 	uint32_t ulCurrMode = g_cpsr & 0x0FUL;
 	uint32_t ulToMode = ulNewCpsr & 0x0FUL;
+	PRINT_TRACE("  ---SwitchMode: %d->%d, new cpsr = %X\n", ulCurrMode, ulToMode, ulNewCpsr);
 
 	g_cpsr = ulNewCpsr;
 
@@ -59,7 +62,7 @@ void SwitchToMode(uint32_t ulNewCpsr)
 	SwitchRegs(ulCurrMode, ulToMode);
 }
 
-void RaiseExp(ExpType eType, int32_t lPcDelta)
+void RaiseExp(ExpType eType, uint32_t ulSavedPc)
 {
     uint32_t ulCurrMode = g_cpsr & 0x0FUL;
     uint32_t ulToMode = EXP_TGT_MODE[eType];
@@ -71,7 +74,7 @@ void RaiseExp(ExpType eType, int32_t lPcDelta)
     g_cpsr &= ~STATE_THUMB;
     g_cpsr |= EXP_DISABLE_IF[eType];
     g_cpsr = g_cpsr & 0xFFFFFFF0 | ( ulToMode + 0x10 );
-    g_regs[14] = g_regs[15] + lPcDelta;
+    g_regs[14] = ulSavedPc;
     g_regs[15] = 0 + eType * 4;
 
     //count ticks up
@@ -100,6 +103,8 @@ FASTCALL bool DoDispTicksUpdate();
 
 //sys ticks related, actually not real cpu work, but anyway
 uint16_t g_usTicksThisPiece;
+uint32_t g_ulTicksOa = 0;
+bool bDyncTrace = false;
 
 //main entrance, not only cpu work
 void AsgbaExec()
@@ -119,8 +124,10 @@ void AsgbaExec()
         CheckIRQ();	//this is the check of the informal data to serialize the input in the cpu thread
 
         if ( ( g_cpsr & g_nirq ) != 0 ){	//this is the check of the formal flag
-        	RaiseExp(EXP_IRQ, 4);
+        	RaiseExp(EXP_IRQ, g_pc + 4);
         }
+		g_ulTicksOa += g_usTicksThisPiece;
+		PrintTrace("Overall ticks: %d (%X)\n", g_ulTicksOa);
     }
 }
 
@@ -128,7 +135,7 @@ void InitCpu()
 {
     //regs
 	g_cpsr = 0;
-	RaiseExp(EXP_RESET, 0);	//it happens to set the status right, the to be saved cpsr is "unpredictable" anyway
+	RaiseExp(EXP_RESET, g_pc);	//it happens to set the status right, the to be saved cpsr is "unpredictable" anyway
 
     //implement related
     InitCpu_();
