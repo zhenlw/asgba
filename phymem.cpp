@@ -8,7 +8,13 @@ uint8_t g_arrStorPalram[0x400];  //start from addr 0x05000000
 uint8_t g_arrStorVram[0x18000];  //start from addr 0x06000000
 uint8_t g_arrStorOam[0x400];  //start from addr 0x07000000
 
+uint8_t g_arrStorFlash[0x20000];   //128KB flash
+
 struct BlockDesc g_arrBlksDesc[0x10000000/0x400];
+
+//for convenience
+uint16_t * const g_arrStorPalramBg = (uint16_t *)g_arrStorPalram;
+uint16_t * const g_arrStorPalramSpr = (uint16_t *)(g_arrStorPalram + 0x200);
 
 //device registers map
 uint32_t s_dummy1;
@@ -29,7 +35,7 @@ static void InitBlockArea(uint32_t ulAeraStart, uint32_t ulAeraSize, uint8_t *pS
 	}
 }
 
-void PhyMemInit(uint8_t *bios)
+void PhyMemInit(uint8_t *bios, uint8_t *rom, uint32_t romsz)
 {
     //main blocks desc
     InitBlockArea(0, sizeof(g_arrStorBios), g_arrStorBios, sizeof(g_arrStorBios), false);
@@ -40,6 +46,13 @@ void PhyMemInit(uint8_t *bios)
     InitBlockArea(0x05000000, 0x01000000, g_arrStorPalram, sizeof(g_arrStorPalram));
     InitBlockArea(0x06000000, 0x01000000, g_arrStorVram, sizeof(g_arrStorVram));
     InitBlockArea(0x07000000, 0x01000000, g_arrStorOam, sizeof(g_arrStorOam));
+	InitBlockArea(0x08000000, 0x08000000, NULL, 0, false, false);
+	InitBlockArea(0x08000000, romsz, rom, romsz, false);
+	InitBlockArea(0x0A000000, romsz, rom, romsz, false);
+	InitBlockArea(0x0C000000, romsz, rom, romsz, false);
+	InitBlockArea(0x0A000000 - sizeof(g_arrStorFlash), sizeof(g_arrStorFlash), g_arrStorFlash, sizeof(g_arrStorFlash));
+	InitBlockArea(0x0C000000 - sizeof(g_arrStorFlash), sizeof(g_arrStorFlash), g_arrStorFlash, sizeof(g_arrStorFlash));
+	InitBlockArea(0x0E000000 - sizeof(g_arrStorFlash), sizeof(g_arrStorFlash), g_arrStorFlash, sizeof(g_arrStorFlash));
 
     //device registers realted
     for ( int32_t i = 0x0FFFF; i >= 0; i-- ){
@@ -71,6 +84,10 @@ uint8_t phym_read8(uint32_t addr) throw(uint32_t)
 
 void phym_write8(uint32_t addr, uint8_t val) throw(uint32_t)
 {
+	if ( addr >= 0x07000000 && addr < 0x08000000 ){
+		addr = addr;
+	}
+
     struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
         if ( pBD->bWritable ){
@@ -112,6 +129,13 @@ uint16_t phym_read16(uint32_t addr) throw(uint32_t)
 
 void phym_write16(uint32_t addr, uint16_t val) throw(uint32_t)
 {
+	if ( addr == 0x07000020 ){	//DEBUG
+		addr = addr;
+	}
+	else if ( addr == 0x03003648 ){
+		addr = addr;
+	}
+
 	addr &= 0xFFFFFFFE;
     struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){
@@ -170,6 +194,13 @@ uint32_t phym_read32(uint32_t addr) throw(uint32_t)
 
 void phym_write32(uint32_t addr, uint32_t val) throw(uint32_t)
 {
+	if ( addr == 0x07000020 ){	//DEBUG
+		addr = addr;
+	}
+	else if ( addr == 0x03003648 ){
+		addr = addr;
+	}
+
 	addr &= 0xFFFFFFFC;
     struct BlockDesc *pBD = g_arrBlksDesc + ( addr >> 10 );
     if ( pBD->pBase != NULL ){

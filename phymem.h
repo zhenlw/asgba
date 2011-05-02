@@ -12,6 +12,10 @@ void RegisterDevRegHandler(uint32_t addr, SetRegHandler_t set, GetRegHandler_t g
 extern uint8_t g_arrDevRegCache[0x10000];
 extern uint8_t g_arrStorVram[0x18000];
 extern uint8_t g_arrStorPalram[0x400];
+extern uint8_t g_arrStorOam[0x400];
+
+extern uint16_t * const g_arrStorPalramBg;
+extern uint16_t * const g_arrStorPalramSpr;
 
 //we are not considering endians yet, since the target and host cpu both use little endian now.
 #define REG_BITS(TYPE, ADDR, BITS_START, BITS_SZ)   INT_BITS(TYPE, (*(TYPE*)(g_arrDevRegCache + ADDR)), BITS_START, BITS_SZ)

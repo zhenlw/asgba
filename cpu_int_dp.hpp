@@ -116,12 +116,15 @@ FASTCALL uint32_t Op_AND(uint32_t ulOpCode)
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);	//also pc is decided here
 	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
-	uint32_t res = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] & ulOpd2;
+	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
+	uint32_t res = g_regs[rni] & ulOpd2;
 	
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
+		PRINT_TRACE("  ----no S, r%d (%X) = r%d (%X) & %X\n", rdi, res, rni, g_regs[rni], ulOpd2);
 		g_regs[rdi] = res;
 	}
 	else{
+		PRINT_TRACE("  ----with S, r%d (%X) = r%d (%X) & %X\n", rdi, res, rni, g_regs[rni], ulOpd2);
 		if ( rdi == 15 ){
 			BackFromExp(res);
 			return 1;
@@ -353,7 +356,7 @@ FASTCALL uint32_t Op_ADC(uint32_t ulOpCode)
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ulOpd2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 28 );
+		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ulOpd2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 );
 	}
 	else{
 		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
@@ -363,7 +366,7 @@ FASTCALL uint32_t Op_ADC(uint32_t ulOpCode)
 		op2 += op1;
 		uint32_t cflag = 0;
 		if ( op1 > op2 ) cflag = CPSR_FLAG_MASK_C;
-		uint32_t res = op2 + ( (g_cpsr | CPSR_FLAG_MASK_C) >> 28 );
+		uint32_t res = op2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 );
 
 		if ( rdi == 15 ){
 			BackFromExp(res);
@@ -425,7 +428,7 @@ FASTCALL uint32_t Op_SBC(uint32_t ulOpCode)
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] - ulOpd2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 28 ) - 1;
+		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] - ulOpd2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 ) - 1;
 	}
 	else{
 		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
@@ -435,7 +438,7 @@ FASTCALL uint32_t Op_SBC(uint32_t ulOpCode)
 		op2 += op1;
 		uint32_t cflag = 0;
 		if ( op1 > op2 ) cflag = CPSR_FLAG_MASK_C;
-		uint32_t res = op2 + ( (g_cpsr | CPSR_FLAG_MASK_C) >> 28 );
+		uint32_t res = op2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 );
 
 		if ( rdi == 15 ){
 			BackFromExp(res);
@@ -523,7 +526,7 @@ FASTCALL uint32_t Op_RSC(uint32_t ulOpCode)
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = ulOpd2 - g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 28 ) -1;
+		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = ulOpd2 - g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 ) -1;
 	}
 	else{
 		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
@@ -533,7 +536,7 @@ FASTCALL uint32_t Op_RSC(uint32_t ulOpCode)
 		op2 += op1;
 		uint32_t cflag = 0;
 		if ( op1 > op2 ) cflag = CPSR_FLAG_MASK_C;
-		uint32_t res = op2 + ( (g_cpsr | CPSR_FLAG_MASK_C) >> 28 );
+		uint32_t res = op2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 );
 
 		if ( rdi == 15 ){
 			BackFromExp(res);

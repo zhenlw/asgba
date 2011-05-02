@@ -413,6 +413,9 @@ void CpuCycles()
 	if ( (CPSR_FLAG_MASK_T & g_cpsr) == 0 ){	//arm state
 		g_ulPcDelta = 4;
 		ulInstrAddr = g_pc & 0xFFFFFFFC;	//make sure it's 4 byte aligned: some instruction may set none aligned value
+		if ( ulInstrAddr & 0x08000000 != 0 ){
+			PrintTrace("entering rom\n");
+		}
 		do{
 			//fetch
 			try{

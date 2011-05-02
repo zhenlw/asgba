@@ -11,7 +11,7 @@ BEGIN_EVENT_TABLE(MainFrame, wxFrame)
 END_EVENT_TABLE()
 
 MainFrame::MainFrame()
-	:wxFrame((wxFrame *)NULL, -1, wxT("asgba"), wxDefaultPosition, wxSize(360, 240))
+	:wxFrame((wxFrame *)NULL, -1, wxT("asgba"), wxDefaultPosition, wxSize(300, 280))
 {
 	m_pBmp = NULL;
 
@@ -29,6 +29,7 @@ MainFrame::MainFrame()
 
     CreateStatusBar();
     SetStatusText(wxT("Welcome to wxWidgets!"));
+	m_pWorker = NULL;
 }
 
 MainFrame::~MainFrame()
@@ -38,8 +39,11 @@ MainFrame::~MainFrame()
 
 void MainFrame::OnClose(wxCloseEvent &e)
 {
-	if ( m_Worker.IsRunning() ){
-		m_Worker.Stop();
+	if ( m_pWorker != NULL ){
+		m_pWorker->Stop();
+		m_pWorker->Wait();
+		delete m_pWorker;
+		m_pWorker = NULL;
 	}
 	Destroy();
 }
@@ -51,23 +55,30 @@ void MainFrame::OnQuit(wxCommandEvent& e)
 
 void MainFrame::OnRun(wxCommandEvent& e)
 {
-	m_Worker.Create();
+	if ( m_pWorker != NULL ) return;
 
-	wxCriticalSectionLocker locker(g_csWorker);
+	m_pWorker = new Worker();
+	m_pWorker->Create();
+	//wxCriticalSectionLocker locker(g_csWorker);
 	g_bStopWorker = false;
 
-	m_Worker.Run();
+	m_pWorker->Run();
 }
 
 void MainFrame::OnStop(wxCommandEvent& e)
 {
-	m_Worker.Stop();
+	if ( m_pWorker != NULL ){
+		m_pWorker->Stop();
+		m_pWorker->Wait();
+		delete m_pWorker;
+		m_pWorker = NULL;
+	}
 }
 
 void MainFrame::OnNotifyFromWorker(wxCommandEvent& e)
 {
 	if ( e.GetClientData() == NULL ){	//quiting event
-		m_Worker.Wait();
+		//m_Worker.Wait();
 		if ( NULL != m_pBmp ) delete m_pBmp;
 		m_pBmp = NULL;
 		return;

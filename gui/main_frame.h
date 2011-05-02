@@ -25,7 +25,7 @@ private:
     DECLARE_EVENT_TABLE()
 
 	wxBitmap *m_pBmp;
-	Worker m_Worker;
+	Worker *m_pWorker;
 };
 
 #endif // MAINFRAME_H

@@ -30,6 +30,13 @@ static void IntrReq1(uint8_t arrVal[], uint8_t size)
 static CRITICAL_SECTION s_csIRQ;
 static volatile uint16_t s_usIRQ;
 
+//other system registers
+static void HaltCnt(uint8_t arrVal[], uint8_t size)
+{
+	//g_ulSleep = 1;
+	if ( g_usTicksThisPiece < 100 ) g_usTicksThisPiece = 100;
+}
+
 void Init_INTR()
 {
     //the initial values, all 3, are zero
@@ -37,6 +44,9 @@ void Init_INTR()
 	//register registers
 	RegisterDevRegHandler(0x0202UL, IntrReq);	//the registers do the irq acknowledgment, I guess
 	RegisterDevRegHandler(0x0203UL, IntrReq1);
+
+	//other system registers
+	RegisterDevRegHandler(0x0302UL, HaltCnt);
 
 	InitializeCriticalSection(&s_csIRQ);
 	s_usIRQ = 0;

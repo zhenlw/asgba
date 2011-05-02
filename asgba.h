@@ -5,7 +5,7 @@
 
 //typedef uint8_t (*RenderPtr)[240][3];
 
-bool AsgbaInit(AsgbaEvtHdlr func, uint8_t *bios);
+bool AsgbaInit(AsgbaEvtHdlr hdlr, uint8_t *bios, uint8_t *rom, uint32_t romsz, uint8_t *rgbbuf);
 void AsgbaExec();
 
 #endif

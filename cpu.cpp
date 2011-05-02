@@ -123,16 +123,21 @@ void AsgbaExec()
         //irq are only checked here
         CheckIRQ();	//this is the check of the informal data to serialize the input in the cpu thread
 
-        if ( ( g_cpsr & g_nirq ) != 0 ){	//this is the check of the formal flag
+        if ( ( ~g_cpsr & g_nirq ) != 0 ){	//this is the check of the formal flag
         	RaiseExp(EXP_IRQ, g_pc + 4);
         }
 		g_ulTicksOa += g_usTicksThisPiece;
-		PrintTrace("Overall ticks: %d (%X)\n", g_ulTicksOa);
+		/*if ( g_ulTicksOa >= 0x00aa3200 )	//DEBUG
+			bDyncTrace = true;
+		if ( g_ulTicksOa >= 0x00aa4200 )
+			bDyncTrace = false;*/
+		PrintTrace("Overall ticks: %d (%X)\n", g_ulTicksOa, g_ulTicksOa);
     }
 }
 
 void InitCpu()
 {
+	g_nirq = 0;
     //regs
 	g_cpsr = 0;
 	RaiseExp(EXP_RESET, g_pc);	//it happens to set the status right, the to be saved cpsr is "unpredictable" anyway

@@ -54,7 +54,8 @@ FASTCALL uint32_t Op_LDRB(uint32_t ulOpCode)
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
-	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetBW(ulOpCode): g_regs[rni] - AddrOffsetBW(ulOpCode);
+	uint32_t ulOff = ( (ulOpCode & (1UL << 23)) != 0 )? AddrOffsetBW(ulOpCode): 0UL - AddrOffsetBW(ulOpCode);
+	uint32_t ulAddr = g_regs[rni] + ulOff;
 	g_cpsr = g_cpsr & ~CPSR_FLAG_MASK_C | s_ulCarryOut1;	//the carry flag probably should not be set, or should not be set here.
 
 	g_usTicksThisPiece += 2;
@@ -65,12 +66,14 @@ FASTCALL uint32_t Op_LDRB(uint32_t ulOpCode)
 		}
 		g_regs[15] += g_ulPcDelta;	//when exception happens, the pc is 1 more word ahead
 		g_regs[rdi] = uint32_t(phym_read8(ulAddr));	//exception handling here? just let it through to save some coding for now
+		PRINT_TRACE("  ----Pre, r%d = [r%d + %X] (%X)\n", rdi, rni, ulOff, g_regs[rdi]);
 	}
 	else{
 		uint32_t ulAddr1 = g_regs[rni];	//the 1st exe cycle thing, but actually this may not be necessary since rni cannot be pc
 		g_regs[15] += g_ulPcDelta;
 		g_regs[rdi] = uint32_t(phym_read8(ulAddr1));	//non-privilege transfer on 'W'? even the real thing does that, apps probably won't cross the line even if the emu doesn't act the same
 		g_regs[rni] = ulAddr;	//no write-back to PC; & for post-alternating, it is a mandatory.
+		PRINT_TRACE("  ----post, r%d = [r%d] (%X), off = %X\n", rdi, rni, g_regs[rdi], ulOff);
 	}
 	if ( rdi == 15 ){
 		g_usTicksThisPiece += 2;
@@ -148,6 +151,7 @@ FASTCALL uint32_t Op_STRB(uint32_t ulOpCode)
 
 FASTCALL uint32_t Op_STRW(uint32_t ulOpCode)
 {
+	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rsi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetBW(ulOpCode): g_regs[rni] - AddrOffsetBW(ulOpCode);
@@ -162,13 +166,13 @@ FASTCALL uint32_t Op_STRW(uint32_t ulOpCode)
 
 		g_regs[15] += g_ulPcDelta;	//the source reg is read at the 2nd exe cycle, where pc is one more word ahead
 		phym_write32(ulAddr & 0xFFFFFFFC/*not sure this is right*/, g_regs[rsi]);
-		TRACE_INSTR(ulAddr, rsi);
+		PRINT_TRACE("  ----Pre, [%X] = r%d (%X)\n", ulAddr, rsi, g_regs[rsi]);
 	}
 	else{
 		uint32_t ulAddr1 = g_regs[rni];	//the 1st exe cycle thing, but actually this may not be necessary since rni cannot be pc
 		g_regs[15] += g_ulPcDelta;
 		phym_write32(ulAddr1 & 0xFFFFFFFC, g_regs[rsi]);
-		TRACE_INSTR(ulAddr1, 0x10000000 + rsi);
+		PRINT_TRACE("  ----Post, [%X] = r%d (%X)\n", ulAddr1, rsi, g_regs[rsi]);
 		g_regs[rni] = ulAddr;	//no write-back to PC; & for post-alternating, it is a mandatory.
 	}
 	//g_regs[15] -= 4;
@@ -190,7 +194,8 @@ FASTCALL uint32_t Op_LDRH(uint32_t ulOpCode)
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t rni = INT_BITS(uint32_t, ulOpCode, 16, 4);
 	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
-	uint32_t ulAddr = ( (ulOpCode & (1UL << 23)) != 0 )? g_regs[rni] + AddrOffsetHS(ulOpCode): g_regs[rni] - AddrOffsetHS(ulOpCode);
+	uint32_t ulOff = ( (ulOpCode & (1UL << 23)) != 0 )? AddrOffsetHS(ulOpCode): 0UL - AddrOffsetHS(ulOpCode);
+	uint32_t ulAddr = g_regs[rni] + ulOff;
 
 	g_usTicksThisPiece += 2;
 
@@ -200,12 +205,14 @@ FASTCALL uint32_t Op_LDRH(uint32_t ulOpCode)
 		}
 		g_regs[15] += g_ulPcDelta;	//when exception happens, the pc is 1 more word ahead
 		g_regs[rdi] = uint32_t(phym_read16(ulAddr));	//exception handling here? just let it through to save some coding for now
+		PRINT_TRACE("  ----Pre, r%d = [r%d + %X] = (%X)\n", rdi, rni, ulOff, g_regs[rdi]);
 	}
 	else{
 		uint32_t ulAddr1 = g_regs[rni];	//the 1st exe cycle thing, but actually this may not be necessary since rni cannot be pc
 		g_regs[15] += g_ulPcDelta;
 		g_regs[rdi] = uint32_t(phym_read16(ulAddr1));	//non-privilege transfer on 'W'? even the real thing does that, apps probably won't cross the line even if the emu doesn't act the same
 		g_regs[rni] = ulAddr;	//no write-back to PC; & for post-alternating, it is a mandatory.
+		PRINT_TRACE("  ----Post, r%d = [r%d] = (%X), offset = %X\n", rdi, rni, g_regs[rdi], ulOff);
 	}
 	if ( rdi == 15 ){
 		g_usTicksThisPiece += 2;
