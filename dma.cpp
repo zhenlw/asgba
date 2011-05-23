@@ -21,12 +21,20 @@ static void DmaSet(uint16_t idx)
 {
 	DmaStatus *pS = s_DmaStatus + idx;
 	uint16_t usBsAddr = 0xB0 + idx * 12;
-    pS->ulAddrS = REG_BITS(uint32_t, usBsAddr, 0, 27);
-    pS->ulAddrD = REG_BITS(uint32_t, usBsAddr + 4, 0, 27);
+
+	if ( idx == 0 )
+		pS->ulAddrS = REG_BITS(uint32_t, usBsAddr, 0, 27);
+	else
+		pS->ulAddrS = REG_BITS(uint32_t, usBsAddr, 0, 28);
+	if ( idx == 3 )
+		pS->ulAddrD = REG_BITS(uint32_t, usBsAddr + 4, 0, 28);
+	else
+		pS->ulAddrD = REG_BITS(uint32_t, usBsAddr + 4, 0, 27);
+
     struct BlockDesc *pBD = g_arrBlksDesc + ( pS->ulAddrD >> 10 );
     uint16_t flag;
 
-	if ( 0 == REG_BITS(uint16_t, usBsAddr + 0x09, 10, 1) )
+	if ( 0 == REG_BITS(uint16_t, usBsAddr + 0x0A, 9, 1) )
 		pS->bRepeat = false;
 	else
 		pS->bRepeat = true;
@@ -37,6 +45,7 @@ static void DmaSet(uint16_t idx)
 		pS->eStartEvent = EVT_NONE;
 		//what if bRepeat == true & startmode == 0? supress bRepeat?
 		pS->bRepeat = false;
+		if ( g_usTicksThisPiece < MAX_TICKS_PER_CPU_PIECE - 1 ) g_usTicksThisPiece = MAX_TICKS_PER_CPU_PIECE - 1;	//allow at most 1 instr to run before the DMA starts
 	}
 	else{
 		pS->eState = pS->Stopped;
@@ -65,8 +74,13 @@ static void DmaSet(uint16_t idx)
 			pS->b32bit = false;
 		else
 			pS->b32bit = true;
-		pS->ulCount = REG_BITS(uint16_t, usBsAddr + 0x08, 0, 14);
-	    if ( pS->ulCount == 0 ) pS->ulCount = 0x01UL << 14;
+		if ( idx == 3 ){
+			pS->ulCount = *(uint16_t*)(g_arrDevRegCache + 0x0DC);
+			if ( pS->ulCount == 0 ) pS->ulCount = 0x01UL << 16;
+		}else{
+			pS->ulCount = REG_BITS(uint16_t, usBsAddr + 0x08, 0, 14);
+			if ( pS->ulCount == 0 ) pS->ulCount = 0x01UL << 14;
+		}
     }
 
 	//source increment
@@ -121,7 +135,7 @@ FASTCALL void DoDmaPiece()
 {
 	DmaStatus *pS = s_DmaStatus;
 	for ( uint8_t i = 4; i != 0; i-- ){
-		if ( s_DmaStatus[i].eState == DmaStatus::Running ){
+		if ( pS->eState == DmaStatus::Running ){
 			//do a piece of transfer
 			uint32_t cnt = pS->ulCount;
 			if ( cnt > 32 ) cnt = 32;

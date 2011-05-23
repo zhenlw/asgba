@@ -26,8 +26,8 @@ void InitCpu_();
 
 void SwitchRegs(uint32_t ulFrom, uint32_t ulTo)
 {
-	ulFrom %= 14;
-	ulTo %= 14;
+	ulFrom %= 15;
+	ulTo %= 15;
 	if ( ulFrom != ulTo ){
 		if ( ulFrom == MODE_FIQ ){	//backup & switch r8 through r12
 			for (uint8_t i = 8; i <= 12; i++){
@@ -77,7 +77,9 @@ void RaiseExp(ExpType eType, uint32_t ulSavedPc)
     g_regs[14] = ulSavedPc;
     g_regs[15] = 0 + eType * 4;
 
-    //count ticks up
+	PRINT_TRACE("  ---RaiseExp: %d->%d, new cpsr = %X\n", ulCurrMode, ulToMode, g_cpsr);
+
+	//count ticks up
     g_usTicksThisPiece += 2;
 }
 
@@ -88,6 +90,8 @@ void BackFromExp(uint32_t ulNewPc)	//triggered on pc/r15 assigning with 'S' bit 
 
     g_regs[15] = ulNewPc;	//g_regs[ulCurrMode][14] - ulPcDelta;
     g_cpsr = g_spsr;	//do this before restore of spsr
+
+	PRINT_TRACE("  ---RaiseExp: %d->%d, new cpsr = %X\n", ulCurrMode, ulToMode, g_cpsr);
 
     //save/restore banked registers
 	SwitchRegs(ulCurrMode, ulToMode);

@@ -30,13 +30,13 @@ struct BlockDesc {
 
 extern struct BlockDesc g_arrBlksDesc[];
 
-FASTCALL uint8_t phym_read8(uint32_t addr) throw(uint32_t);
-FASTCALL void phym_write8(uint32_t addr, uint8_t val) throw(uint32_t);
-FASTCALL uint16_t phym_read16(uint32_t addr) throw(uint32_t);
-FASTCALL void phym_write16(uint32_t addr, uint16_t val) throw(uint32_t);
-FASTCALL uint32_t phym_read32(uint32_t addr) throw(uint32_t);
-FASTCALL void phym_write32(uint32_t addr, uint32_t val) throw(uint32_t);
+FASTCALL uint8_t phym_read8(uint32_t addr);
+FASTCALL void phym_write8(uint32_t addr, uint8_t val);
+FASTCALL uint16_t phym_read16(uint32_t addr);
+FASTCALL void phym_write16(uint32_t addr, uint16_t val);
+FASTCALL uint32_t phym_read32(uint32_t addr);
+FASTCALL void phym_write32(uint32_t addr, uint32_t val);
 
-//FASTCALL void phym_FetchInstrs(uint32_t addr, uint32_t *pBuf) throw(uint32_t);
+//FASTCALL void phym_FetchInstrs(uint32_t addr, uint32_t *pBuf);
 
 #endif // PHYMEM_H_INCLUDED

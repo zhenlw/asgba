@@ -58,6 +58,6 @@ FASTCALL uint32_t Op_BL(uint32_t ulOpCode)
 FASTCALL uint32_t Op_SWI(uint32_t)
 {
 	TRACE_INSTR(0, 0);
-	RaiseExp(EXP_SWI, g_pc - 4);
+	RaiseExp(EXP_SWI, g_pc - g_ulPcDelta);
 	return 1;	//prevent regular process from being taken
 }

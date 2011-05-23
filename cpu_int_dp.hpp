@@ -122,6 +122,7 @@ FASTCALL uint32_t Op_AND(uint32_t ulOpCode)
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		PRINT_TRACE("  ----no S, r%d (%X) = r%d (%X) & %X\n", rdi, res, rni, g_regs[rni], ulOpd2);
 		g_regs[rdi] = res;
+		if ( rdi == 15 ) return 1;
 	}
 	else{
 		PRINT_TRACE("  ----with S, r%d (%X) = r%d (%X) & %X\n", rdi, res, rni, g_regs[rni], ulOpd2);
@@ -143,13 +144,13 @@ FASTCALL uint32_t Op_EOR(uint32_t ulOpCode)
 {
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
+	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
+	uint32_t res = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] ^ ulOpd2;
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] =
-				g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] ^ ulOpd2;
+		g_regs[rdi] = res;
+		if ( rdi == 15 ) return 1;
 	}
 	else{
-		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
-		uint32_t res = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] ^ ulOpd2;
 		if ( rdi == 15 ){
 			BackFromExp(res);
 			return 1;
@@ -199,13 +200,13 @@ FASTCALL uint32_t Op_ORR(uint32_t ulOpCode)
 {
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
+	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
+	uint32_t res = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] | ulOpd2;
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] =
-				g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] | ulOpd2;
+		g_regs[rdi] = res;
+		if ( rdi == 15 ) return 1;
 	}
 	else{
-		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
-		uint32_t res = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] | ulOpd2;
 		if ( rdi == 15 ){
 			BackFromExp(res);
 			return 1;
@@ -230,6 +231,7 @@ FASTCALL uint32_t Op_MOV(uint32_t ulOpCode)
 
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[rdi] = ulOpd2;
+		if ( rdi == 15 ) return 1;
 	}
 	else{
 		uint32_t res = ulOpd2;
@@ -258,6 +260,7 @@ FASTCALL uint32_t Op_BIC(uint32_t ulOpCode)
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[rdi] = g_regs[rni] & (~ulOpd2);
 		PRINT_TRACE("  ----no S, r%d (%X) = r%d (%X) & ~%X\n", rdi, g_regs[rdi], rni, g_regs[rni], ulOpd2);
+		if ( rdi == 15 ) return 1;
 	}
 	else{
 		uint32_t res = g_regs[rni] & (~ulOpd2);
@@ -280,12 +283,13 @@ FASTCALL uint32_t Op_MVN(uint32_t ulOpCode)
 {
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
+	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
+	uint32_t res = ~ulOpd2;
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = ~ulOpd2;
+		g_regs[rdi] = res;
+		if ( rdi == 15 ) return 1;
 	}
 	else{
-		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
-		uint32_t res = ~ulOpd2;
 		if ( rdi == 15 ){
 			BackFromExp(res);
 			return 1;
@@ -309,6 +313,7 @@ FASTCALL uint32_t Op_ADD(uint32_t ulOpCode)
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[rdi] = g_regs[rni] + ulOpd2;
 		PRINT_TRACE("  ----  no S, r%d = r%d (%X) + %X\n", rdi, rni, g_regs[rni], ulOpd2);
+		if ( rdi == 15 ) return 1;
 	}
 	else{
 		uint32_t op1 = g_regs[rni];
@@ -355,11 +360,12 @@ FASTCALL uint32_t Op_ADC(uint32_t ulOpCode)
 {
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
+	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ulOpd2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 );
+		g_regs[rdi] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ulOpd2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 );
+		if ( rdi == 15 ) return 1;
 	}
 	else{
-		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 		uint32_t op1 = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
 		uint32_t op2 = ulOpd2;
 		uint32_t bit33 = (op2 & 0x80000000) + (op1 & 0x80000000);	//sign extended "33rd" bit at the 32nd bit
@@ -394,6 +400,7 @@ FASTCALL uint32_t Op_SUB(uint32_t ulOpCode)
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
 		g_regs[rdi] = g_regs[rni] - ulOpd2;
 		PRINT_TRACE("  ----no S, r%d (%X) = r%d (%X) - %X\n", rdi, g_regs[rdi], rni, g_regs[rni], ulOpd2);
+		if ( rdi == 15 ) return 1;
 	}
 	else{
 		uint32_t op1 = g_regs[rni];
@@ -427,11 +434,12 @@ FASTCALL uint32_t Op_SBC(uint32_t ulOpCode)
 {
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
+	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] - ulOpd2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 ) - 1;
+		g_regs[rdi] = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] - ulOpd2 + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 ) - 1;
+		if ( rdi == 15 ) return 1;
 	}
 	else{
-		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 		uint32_t op1 = g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
 		uint32_t op2 = ~ulOpd2;
 		uint32_t bit33 = (op2 & 0x80000000) + (op1 & 0x80000000);	//sign extended "33rd" bit at the 32nd bit
@@ -490,11 +498,12 @@ FASTCALL uint32_t Op_RSB(uint32_t ulOpCode)
 {
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
+	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = ulOpd2 - g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
+		g_regs[rdi] = ulOpd2 - g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
+		if ( rdi == 15 ) return 1;
 	}
 	else{
-		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 		uint32_t op2 = ~g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
 		uint32_t op1 = ulOpd2;
 		uint32_t bit33 = (op2 & 0x80000000) + (op1 & 0x80000000);	//sign extended "33rd" bit at the 32nd bit
@@ -525,11 +534,12 @@ FASTCALL uint32_t Op_RSC(uint32_t ulOpCode)
 {
 	TRACE_INSTR(ulOpCode, 0);
 	uint32_t ulOpd2 = DataProcOpd2(ulOpCode);
+	uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 	if ( (ulOpCode & ( 0x1UL << 20 )) == 0 ){
-		g_regs[INT_BITS(uint32_t, ulOpCode, 12, 4)] = ulOpd2 - g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 ) -1;
+		g_regs[rdi] = ulOpd2 - g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)] + ( (g_cpsr & CPSR_FLAG_MASK_C) >> 29 ) -1;
+		if ( rdi == 15 ) return 1;
 	}
 	else{
-		uint32_t rdi = INT_BITS(uint32_t, ulOpCode, 12, 4);
 		uint32_t op2 = ~g_regs[INT_BITS(uint32_t, ulOpCode, 16, 4)];
 		uint32_t op1 = ulOpd2;
 		uint32_t bit33 = (op2 & 0x80000000) + (op1 & 0x80000000);	//sign extended "33rd" bit at the 32nd bit

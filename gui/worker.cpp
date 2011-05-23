@@ -7,6 +7,9 @@
 
 extern MainFrame *g_pMainFrame;
 
+static uint8_t s_arrImg[240 * 160 * 3];
+
+
 DEFINE_EVENT_TYPE(WORKER_NOTIFY_EVT)
 
 Worker::Worker(): wxThread(wxTHREAD_JOINABLE)
@@ -17,7 +20,7 @@ Worker::~Worker()
 {
 }
 
-static wxImage s_img(240, 160, false);
+//static wxImage s_img(240, 160, false);
 
 FASTCALL bool EvtHdlr(SystemEvent evt, void *pParam)
 {
@@ -26,13 +29,11 @@ FASTCALL bool EvtHdlr(SystemEvent evt, void *pParam)
 		return false;	//don't think the mutex is necessary for reading
 
 	if ( evt == EVT_VBLK ){
-		//create image, bitmap, and send the bitmap to the main thread
-		wxBitmap *pBmp = new wxBitmap(s_img);
 
 		//notify the main thread
 		wxCommandEvent event(WORKER_NOTIFY_EVT, 0);
 		//event.SetEventObject(this);
-		event.SetClientData(pBmp);
+		event.SetClientData(s_arrImg);
 		::wxPostEvent(g_pMainFrame, event);
 	}
 	return true;
@@ -67,10 +68,9 @@ void* Worker::Entry()
 		fl.Close();
 	}
 	if ( pRom != NULL ){
-		AsgbaInit(EvtHdlr, biosbuf, pRom, uint32_t(sz), s_img.GetData());
+		AsgbaInit(EvtHdlr, biosbuf, pRom, uint32_t(sz));
 		AsgbaExec();
 		//only quit when EvtHdlr return false
-		delete pRom;
 	}
 	
 	//notify the main thread

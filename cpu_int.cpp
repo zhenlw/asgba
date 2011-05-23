@@ -405,17 +405,27 @@ bool ThumbInstrConverter::Init()
 	return true;
 }
 
-
+/*extern uint32_t g_ulTicksOa;
+bool bRom = false;
+*/
 //main entry for interpreted cpu
 void CpuCycles()
 {
+	//if ( g_ulTicksOa > 0x048c9000 ) bDyncTrace = true;
 	uint32_t ulOpCode;
 	if ( (CPSR_FLAG_MASK_T & g_cpsr) == 0 ){	//arm state
 		g_ulPcDelta = 4;
 		ulInstrAddr = g_pc & 0xFFFFFFFC;	//make sure it's 4 byte aligned: some instruction may set none aligned value
-		if ( ulInstrAddr & 0x08000000 != 0 ){
+		/*if ( ulInstrAddr == 0x08000000 ){
+			//bDyncTrace = true;
+			//g_ulTicksOa = 0;
+			bRom = true;
 			PrintTrace("entering rom\n");
 		}
+		/*if ( bRom ){
+			if ( g_ulTicksOa > 10000 )
+				g_ulTicksOa = 0;
+		}*/
 		do{
 			//fetch
 			try{
@@ -431,8 +441,7 @@ void CpuCycles()
 			if ( s_CondMap[((ulOpCode >> 24) & 0xF0) | (g_cpsr >> 28)] != 0 ){
 				//exec
 				try{
-					if ( 0 != s_OpDisp[((ulOpCode >> 14) & 0x3FC0) | ((ulOpCode >> 4) & 0x003F)](ulOpCode) )
-						return;	//pc must be set correctly already, later this may be replaced by c++ exception
+					if ( s_OpDisp[((ulOpCode >> 14) & 0x3FC0) | ((ulOpCode >> 4) & 0x003F)](ulOpCode) != 0 ) return;
 				}
 				catch(uint32_t){
 					RaiseExp(EXP_ABT, ulInstrAddr + 8);	//the instru address + 8
@@ -440,7 +449,7 @@ void CpuCycles()
 				}
 			}
 			ulInstrAddr += 4;
-		} while ( g_usTicksThisPiece < 100 );
+		} while ( g_usTicksThisPiece < MAX_TICKS_PER_CPU_PIECE );
 		g_pc = ulInstrAddr;
 	}
 	else{
@@ -463,8 +472,7 @@ void CpuCycles()
 			if ( s_CondMap[((ulOpCode >> 24) & 0xF0) | (g_cpsr >> 28)] != 0 ){
 				//exec
 				try{
-					if ( 0 != s_OpDisp[((ulOpCode >> 14) & 0x3FC0) | ((ulOpCode >> 4) & 0x003F)](ulOpCode) )
-						return;	//pc must be set correctly already, later this may be replaced by c++ exception
+					if ( s_OpDisp[((ulOpCode >> 14) & 0x3FC0) | ((ulOpCode >> 4) & 0x003F)](ulOpCode) != 0 ) return;
 				}
 				catch(uint32_t){
 					RaiseExp(EXP_ABT, ulInstrAddr + 8);	//the instru address + 8
@@ -472,7 +480,7 @@ void CpuCycles()
 				}
 			}
 			ulInstrAddr += 2;
-		} while ( g_usTicksThisPiece < 100 );
+		} while ( g_usTicksThisPiece < MAX_TICKS_PER_CPU_PIECE );
 		g_pc = ulInstrAddr;
 	}
 }

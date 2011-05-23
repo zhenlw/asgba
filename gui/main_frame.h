@@ -2,6 +2,8 @@
 #define MAINFRAME_H
 
 #include <wx/frame.h> // Base class: wxFrame
+#include <wx/glcanvas.h>
+
 #include "worker.h"
 
 enum {
@@ -19,12 +21,13 @@ public:
 	void OnStop(wxCommandEvent &e);
 	void OnNotifyFromWorker(wxCommandEvent &e);
 	void OnClose(wxCloseEvent &e);
-	void OnPaint(wxPaintEvent& event);
+	//void OnPaint(wxPaintEvent& event);
 
 private:
     DECLARE_EVENT_TABLE()
 
-	wxBitmap *m_pBmp;
+	wxGLCanvas *m_pCanvas;
+	wxGLContext *m_pContext;
 	Worker *m_pWorker;
 };
 

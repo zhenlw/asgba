@@ -45,4 +45,6 @@ void SwitchRegs(uint32_t ulFrom, uint32_t ulTo);
 void SwitchToMode(uint32_t ulNewCpsr);
 void BackFromExp(uint32_t ulNewPc);
 
+#define MAX_TICKS_PER_CPU_PIECE		64
+
 #endif /* CPU_H_ */

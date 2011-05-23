@@ -7,14 +7,12 @@ BEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU(ID_Quit, MainFrame::OnQuit)
 	EVT_CLOSE(MainFrame::OnClose)
 	EVT_COMMAND(0, WORKER_NOTIFY_EVT, MainFrame::OnNotifyFromWorker)
-	EVT_PAINT(MainFrame::OnPaint)
+	//EVT_PAINT(MainFrame::OnPaint)
 END_EVENT_TABLE()
 
 MainFrame::MainFrame()
-	:wxFrame((wxFrame *)NULL, -1, wxT("asgba"), wxDefaultPosition, wxSize(300, 280))
+	:wxFrame((wxFrame *)NULL, -1, wxT("asgba"), wxDefaultPosition)
 {
-	m_pBmp = NULL;
-
     wxMenu *menuFile = new wxMenu;
 
     menuFile->Append(ID_Run, wxT("&Run"));
@@ -30,11 +28,12 @@ MainFrame::MainFrame()
     CreateStatusBar();
     SetStatusText(wxT("Welcome to wxWidgets!"));
 	m_pWorker = NULL;
+
+	this->SetClientSize(480, 320);
 }
 
 MainFrame::~MainFrame()
 {
-	if ( NULL != m_pBmp ) delete m_pBmp;
 }
 
 void MainFrame::OnClose(wxCloseEvent &e)
@@ -62,6 +61,12 @@ void MainFrame::OnRun(wxCommandEvent& e)
 	//wxCriticalSectionLocker locker(g_csWorker);
 	g_bStopWorker = false;
 
+	this->SetClientSize(480, 320);
+	m_pCanvas = new wxGLCanvas(this, wxID_ANY, 0, wxDefaultPosition, wxSize(480, 320));
+	m_pContext = new wxGLContext(m_pCanvas);
+	m_pContext->SetCurrent(*m_pCanvas);
+	glOrtho(0.0, 240.0, 0.0, 160.0, -1.0, 1.0);
+
 	m_pWorker->Run();
 }
 
@@ -71,28 +76,26 @@ void MainFrame::OnStop(wxCommandEvent& e)
 		m_pWorker->Stop();
 		m_pWorker->Wait();
 		delete m_pWorker;
+		delete m_pContext;
+		delete m_pCanvas;
 		m_pWorker = NULL;
 	}
 }
+
+void DispCtxToGl();
 
 void MainFrame::OnNotifyFromWorker(wxCommandEvent& e)
 {
 	if ( e.GetClientData() == NULL ){	//quiting event
 		//m_Worker.Wait();
-		if ( NULL != m_pBmp ) delete m_pBmp;
-		m_pBmp = NULL;
 		return;
 	}
 
-	if ( NULL != m_pBmp ) delete m_pBmp;
-	m_pBmp = (wxBitmap *)(e.GetClientData());
-	this->Refresh();
+	DispCtxToGl();
+	glFlush();
+	m_pCanvas->SwapBuffers();
+
+
+	//this->Refresh();
 }
 
-void MainFrame::OnPaint(wxPaintEvent& event)
-{
-	wxPaintDC dc(this);
-
-	if ( m_pBmp != NULL )
-		dc.DrawBitmap(*m_pBmp, 0, 0);
-}
